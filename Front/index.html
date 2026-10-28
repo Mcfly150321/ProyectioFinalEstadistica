@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Transmisor y Analizador de Audio</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: #070b13;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 14px;
+    }
+
+    .container {
+      background-color: #101726;
+      border: 1px solid #1e293b;
+      border-radius: 18px;
+      padding: 22px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+
+    .status-badge.streaming {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.4);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.25);
+    }
+
+    .status-badge.error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-badge.streaming .dot {
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.4; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1.2); }
+    }
+
+    .insecure-alert {
+      display: none;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid #ef4444;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: #fca5a5;
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+
+    /* Metricas */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .metric-card {
+      background: #090e18;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 6px;
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 3px;
+    }
+
+    .metric-val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Barra VU */
+    .vu-meter-bg {
+      height: 8px;
+      background: #090e18;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      margin-bottom: 14px;
+    }
+
+    .vu-meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #10b981 0%, #38bdf8 65%, #f59e0b 85%, #ef4444 100%);
+      transition: width 0.05s linear;
+      border-radius: 4px;
+    }
+
+    /* Canvas Espectro */
+    .canvas-container {
+      position: relative;
+      background: #070b13;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .mode-tabs {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 5px;
+      z-index: 5;
+    }
+
+    .tab-btn {
+      background: rgba(16, 23, 38, 0.85);
+      backdrop-filter: blur(4px);
+      border: 1px solid #334155;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: #38bdf8;
+      color: #0b1120;
+      font-weight: 700;
+      border-color: #38bdf8;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 180px;
+    }
+
+    .freq-axis {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 10px;
+      font-size: 0.68rem;
+      color: #475569;
+      background: #090e18;
+      border-top: 1px solid #1e293b;
+    }
+
+    /* Boton de inicio */
+    .main-button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0284c7;
+      color: white;
+      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 14px;
+    }
+
+    .main-button:hover {
+      background: #0369a1;
+    }
+
+    .main-button:active {
+      transform: scale(0.99);
+    }
+
+    .main-button.active {
+      background: #dc2626;
+    }
+
+    .main-button.active:hover {
+      background: #b91c1c;
+    }
+
+    /* Configuracion de Red */
+    details {
+      background: #090e18;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      margin-bottom: 14px;
+    }
+
+    summary {
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .config-body {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-group label {
+      font-size: 0.72rem;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+
+    input, select {
+      background: #141c2c;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f1f5f9;
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      border-color: #38bdf8;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .info-footer {
+      font-size: 0.74rem;
+      color: #64748b;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .info-footer strong {
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Transmisor de Audio</h1>
+      <div id="statusBadge" class="status-badge">
+        <span class="dot"></span>
+        <span id="statusLabel">Listo</span>
+      </div>
+    </header>
+
+    <!-- Aviso en caso de requerir HTTPS en navegador movil -->
+    <div id="insecureNotice" class="insecure-alert">
+      <strong>Aviso de seguridad:</strong> El navegador movil requiere HTTPS para habilitar el microfono. Si abres el servidor desde un celular, utiliza la URL HTTPS proporcionada por ngrok o configura un tunel seguro.
+    </div>
+
+    <!-- Metricas en Tiempo Real -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Intensidad</div>
+        <div id="valRms" class="metric-val">0%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Decibeles</div>
+        <div id="valDb" class="metric-val">-∞ dB</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Pico Frecuencia</div>
+        <div id="valPeak" class="metric-val">0 Hz</div>
+      </div>
+    </div>
+
+    <!-- VU Meter Bar -->
+    <div class="vu-meter-bg">
+      <div id="vuFill" class="vu-meter-fill"></div>
+    </div>
+
+    <!-- Espectro / Canvas -->
+    <div class="canvas-container">
+      <div class="mode-tabs">
+        <button id="tabBars" class="tab-btn active" onclick="setMode('bars')">Espectro</button>
+        <button id="tabWave" class="tab-btn" onclick="setMode('wave')">Onda</button>
+      </div>
+      <canvas id="canvas"></canvas>
+      <div id="freqLabels" class="freq-axis">
+        <span>60 Hz</span>
+        <span>250 Hz</span>
+        <span>1 kHz</span>
+        <span>4 kHz</span>
+        <span>12 kHz</span>
+        <span>20 kHz</span>
+      </div>
+    </div>
+
+    <!-- Boton Principal de Iniciar/Detener Captura -->
+    <button id="btnStream" class="main-button">
+      <span id="btnLabel">Iniciar Captura y Envio</span>
+    </button>
+
+    <!-- Configuracion del Envio al Servidor -->
+    <details>
+      <summary>
+        <span>Configuracion de Red y Envio</span>
+        <span>[+]</span>
+      </summary>
+      <div class="config-body">
+        <div class="field-group">
+          <label for="serverUrl">URL del Servidor (WebSocket o HTTP POST):</label>
+          <input type="text" id="serverUrl" value="">
+        </div>
+        <div class="grid-2">
+          <div class="field-group">
+            <label for="protocolMode">Protocolo:</label>
+            <select id="protocolMode">
+              <option value="fetch" selected>Fetch POST (HTTP)</option>
+              <option value="ws">WebSocket</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="sendRate">Tasa de Envio:</label>
+            <select id="sendRate">
+              <option value="50">50 ms (20 fps)</option>
+              <option value="100" selected>100 ms (10 fps)</option>
+              <option value="200">200 ms (5 fps)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>
+            <input type="checkbox" id="chkSendRaw" style="width: auto; margin-right: 6px;">
+            Incluir muestras crudas de audio (PCM Float32) en el payload
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <div class="info-footer">
+      Procesamiento y analisis espectral nativo mediante <strong>Web Audio API</strong>
+    </div>
+  </div>
+
+  <script>
+    // Referencias DOM
+    const btnStream = document.getElementById('btnStream');
+    const btnLabel = document.getElementById('btnLabel');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusLabel = document.getElementById('statusLabel');
+    const insecureNotice = document.getElementById('insecureNotice');
+    const valRms = document.getElementById('valRms');
+    const valDb = document.getElementById('valDb');
+    const valPeak = document.getElementById('valPeak');
+    const vuFill = document.getElementById('vuFill');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const tabBars = document.getElementById('tabBars');
+    const tabWave = document.getElementById('tabWave');
+    const freqLabels = document.getElementById('freqLabels');
+    const serverUrlInput = document.getElementById('serverUrl');
+    const protocolModeSelect = document.getElementById('protocolMode');
+    const sendRateSelect = document.getElementById('sendRate');
+    const chkSendRaw = document.getElementById('chkSendRaw');
+
+    // Estado de Audio y Transmision
+    let audioCtx = null;
+    let analyserNode = null;
+    let micStream = null;
+    let isRunning = false;
+    let animId = null;
+    let viewMode = 'bars';
+    let socket = null;
+    let sendTimer = null;
+
+    // Configurar URL por defecto (detecta automaticamente HTTP o HTTPS / ngrok)
+    const currentHost = window.location.host || 'localhost:8000';
+    const currentProto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    serverUrlInput.value = `${currentProto}//${currentHost}/api/audio-stream`;
+
+    protocolModeSelect.addEventListener('change', () => {
+      const isHttps = window.location.protocol === 'https:';
+      if (protocolModeSelect.value === 'ws') {
+        serverUrlInput.value = `${isHttps ? 'wss:' : 'ws:'}//${currentHost}/ws/audio`;
+      } else {
+        serverUrlInput.value = `${isHttps ? 'https:' : 'http:'}//${currentHost}/api/audio-stream`;
+      }
+    });
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      insecureNotice.style.display = 'block';
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function setMode(mode) {
+      viewMode = mode;
+      if (mode === 'bars') {
+        tabBars.classList.add('active');
+        tabWave.classList.remove('active');
+        freqLabels.style.display = 'flex';
+      } else {
+        tabWave.classList.add('active');
+        tabBars.classList.remove('active');
+        freqLabels.style.display = 'none';
+      }
+    }
+
+    function connectWebSocket() {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      try {
+        const url = serverUrlInput.value.trim();
+        socket = new WebSocket(url);
+
+        socket.onopen = () => {
+          updateStatus('streaming', 'Transmitiendo');
+        };
+
+        socket.onerror = () => {
+          updateStatus('error', 'Error Servidor');
+        };
+
+        socket.onclose = () => {
+          if (isRunning) {
+            updateStatus('error', 'Desconectado');
+          }
+        };
+      } catch (err) {
+        console.error('No se pudo conectar WebSocket:', err);
+      }
+    }
+
+    function updateStatus(state, text) {
+      statusBadge.className = 'status-badge ' + (state === 'streaming' ? 'streaming' : state === 'error' ? 'error' : '');
+      statusLabel.textContent = text;
+    }
+
+    async function startAudioCapture() {
+      try {
+        updateStatus('', 'Iniciando...');
+
+        const constraints = {
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        };
+
+        micStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+
+        analyserNode = audioCtx.createAnalyser();
+        analyserNode.fftSize = 512;
+        analyserNode.smoothingTimeConstant = 0.8;
+
+        const micSource = audioCtx.createMediaStreamSource(micStream);
+        micSource.connect(analyserNode);
+
+        if (protocolModeSelect.value === 'ws') {
+          connectWebSocket();
+        }
+
+        isRunning = true;
+        btnStream.classList.add('active');
+        btnLabel.textContent = 'Detener Captura y Envio';
+        updateStatus('streaming', 'Transmitiendo');
+
+        renderLoop();
+        startDataDispatch();
+
+      } catch (err) {
+        console.error('Error al iniciar microfono:', err);
+        alert('No se pudo acceder al microfono: ' + (err.message || err.name));
+        updateStatus('error', 'Error Microfono');
+        stopAudioCapture();
+      }
+    }
+
+    function stopAudioCapture() {
+      isRunning = false;
+      if (animId) cancelAnimationFrame(animId);
+      if (sendTimer) clearInterval(sendTimer);
+
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
+      if (socket) {
+        socket.close();
+        socket = null;
+      }
+
+      btnStream.classList.remove('active');
+      btnLabel.textContent = 'Iniciar Captura y Envio';
+      updateStatus('', 'Detenido');
+
+      vuFill.style.width = '0%';
+      valRms.textContent = '0%';
+      valDb.textContent = '-∞ dB';
+      valPeak.textContent = '0 Hz';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function renderLoop() {
+      if (!isRunning) return;
+      animId = requestAnimationFrame(renderLoop);
+
+      const bufferLen = analyserNode.frequencyBinCount;
+      const freqData = new Uint8Array(bufferLen);
+      const timeData = new Uint8Array(bufferLen);
+
+      analyserNode.getByteFrequencyData(freqData);
+      analyserNode.getByteTimeDomainData(timeData);
+
+      let sumSquares = 0;
+      let peakVal = 0;
+      let peakIndex = 0;
+
+      for (let i = 0; i < bufferLen; i++) {
+        const norm = (timeData[i] - 128) / 128;
+        sumSquares += norm * norm;
+
+        if (freqData[i] > peakVal) {
+          peakVal = freqData[i];
+          peakIndex = i;
+        }
+      }
+
+      const rms = Math.sqrt(sumSquares / bufferLen);
+      const volumePercent = Math.min(100, Math.round(rms * 190));
+      const db = rms > 0.0001 ? Math.max(-60, Math.round(20 * Math.log10(rms))) : -60;
+
+      const nyquist = audioCtx.sampleRate / 2;
+      const peakHz = Math.round((peakIndex * nyquist) / bufferLen);
+
+      valRms.textContent = `${volumePercent}%`;
+      valDb.textContent = `${db} dB`;
+      valPeak.textContent = peakVal > 20 ? `${peakHz} Hz` : '---';
+      vuFill.style.width = `${volumePercent}%`;
+
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (viewMode === 'bars') {
+        const barCount = 56;
+        const step = Math.floor(bufferLen / barCount);
+        const barWidth = (w / barCount) - 2;
+
+        for (let i = 0; i < barCount; i++) {
+          let sum = 0;
+          for (let j = 0; j < step; j++) {
+            sum += freqData[i * step + j];
+          }
+          const barHeight = ((sum / step) / 255) * (h * 0.92);
+          const x = i * (barWidth + 2);
+          const y = h - barHeight;
+
+          const grad = ctx.createLinearGradient(0, h, 0, 0);
+          grad.addColorStop(0, '#0284c7');
+          grad.addColorStop(0.5, '#38bdf8');
+          grad.addColorStop(0.85, '#c084fc');
+          grad.addColorStop(1, '#f43f5e');
+
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth, Math.max(2, barHeight), [3, 3, 0, 0]);
+          ctx.fill();
+        }
+      } else {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = volumePercent > 5 ? '#38bdf8' : '#475569';
+        ctx.beginPath();
+
+        const sliceWidth = w / bufferLen;
+        let x = 0;
+
+        for (let i = 0; i < bufferLen; i++) {
+          const v = timeData[i] / 128.0;
+          const y = (v * h) / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+      }
+    }
+
+    function startDataDispatch() {
+      if (sendTimer) clearInterval(sendTimer);
+
+      const intervalMs = parseInt(sendRateSelect.value, 10) || 100;
+
+      sendTimer = setInterval(() => {
+        if (!isRunning || !analyserNode) return;
+
+        const bufferLen = analyserNode.frequencyBinCount;
+        const freqData = new Uint8Array(bufferLen);
+        const timeData = new Float32Array(bufferLen);
+
+        analyserNode.getByteFrequencyData(freqData);
+        analyserNode.getFloatTimeDomainData(timeData);
+
+        let sumSquares = 0;
+        let peakVal = 0;
+        let peakIndex = 0;
+
+        for (let i = 0; i < bufferLen; i++) {
+          sumSquares += timeData[i] * timeData[i];
+          if (freqData[i] > peakVal) {
+            peakVal = freqData[i];
+            peakIndex = i;
+          }
+        }
+
+        const rms = Math.sqrt(sumSquares / bufferLen);
+        const db = rms > 0.0001 ? +(20 * Math.log10(rms)).toFixed(2) : -60.0;
+        const nyquist = audioCtx.sampleRate / 2;
+        const peakHz = Math.round((peakIndex * nyquist) / bufferLen);
+
+        const payload = {
+          timestamp: Date.now(),
+          sampleRate: audioCtx.sampleRate,
+          rms: +rms.toFixed(4),
+          db: db,
+          peakFrequencyHz: peakHz,
+          rawSamples: chkSendRaw.checked ? Array.from(timeData) : undefined
+        };
+
+        const protocol = protocolModeSelect.value;
+        const targetUrl = serverUrlInput.value.trim();
+
+        if (protocol === 'ws') {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(payload));
+          }
+        } else {
+          fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => {});
+        }
+
+      }, intervalMs);
+    }
+
+    btnStream.addEventListener('click', () => {
+      if (!isRunning) {
+        startAudioCapture();
+      } else {
+        stopAudioCapture();
+      }
+    });
+  </script>
+</body>
+</html>
