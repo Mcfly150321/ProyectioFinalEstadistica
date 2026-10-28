@@ -136,3 +136,4 @@ class AudioVisualizer {
 }
 
 window.AudioVisualizer = AudioVisualizer;
+

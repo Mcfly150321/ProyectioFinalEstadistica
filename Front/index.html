@@ -1,749 +1,420 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Transmisor y Analizador de Audio</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      -webkit-tap-highlight-color: transparent;
-    }
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analytics - Dashboard de Monitoreo</title>
 
-    body {
-      background-color: #070b13;
-      color: #e2e8f0;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 14px;
-    }
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/images/favicon.ico">
 
-    .container {
-      background-color: #101726;
-      border: 1px solid #1e293b;
-      border-radius: 18px;
-      padding: 22px;
-      width: 100%;
-      max-width: 600px;
-      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
-    }
+  <!-- Librerias Locales Spark Admin (100% Offline) -->
+  <link rel="stylesheet" href="assets/libs/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="assets/libs/bootstrap-icons/bootstrap-icons.css">
+  <link rel="stylesheet" href="assets/libs/apexcharts/apexcharts.css">
+  <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.min.css">
 
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-      gap: 12px;
-    }
-
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #f8fafc;
-      letter-spacing: -0.3px;
-    }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 9999px;
-      font-size: 0.76rem;
-      font-weight: 600;
-      background: #1e293b;
-      color: #94a3b8;
-      border: 1px solid #334155;
-      transition: all 0.25s ease;
-      white-space: nowrap;
-    }
-
-    .status-badge.streaming {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border-color: rgba(52, 211, 153, 0.4);
-      box-shadow: 0 0 10px rgba(52, 211, 153, 0.25);
-    }
-
-    .status-badge.error {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-color: rgba(239, 68, 68, 0.4);
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
-    .status-badge.streaming .dot {
-      animation: pulse 1s infinite alternate;
-    }
-
-    @keyframes pulse {
-      from { opacity: 0.4; transform: scale(0.8); }
-      to { opacity: 1; transform: scale(1.2); }
-    }
-
-    .insecure-alert {
-      display: none;
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid #ef4444;
-      border-radius: 10px;
-      padding: 12px 14px;
-      font-size: 0.8rem;
-      color: #fca5a5;
-      margin-bottom: 16px;
-      line-height: 1.45;
-    }
-
-    /* Metricas */
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-
-    .metric-card {
-      background: #090e18;
-      border: 1px solid #1e293b;
-      border-radius: 10px;
-      padding: 10px 6px;
-      text-align: center;
-    }
-
-    .metric-label {
-      font-size: 0.7rem;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 3px;
-    }
-
-    .metric-val {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* Barra VU */
-    .vu-meter-bg {
-      height: 8px;
-      background: #090e18;
-      border-radius: 4px;
-      overflow: hidden;
-      border: 1px solid #1e293b;
-      margin-bottom: 14px;
-    }
-
-    .vu-meter-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #10b981 0%, #38bdf8 65%, #f59e0b 85%, #ef4444 100%);
-      transition: width 0.05s linear;
-      border-radius: 4px;
-    }
-
-    /* Canvas Espectro */
-    .canvas-container {
-      position: relative;
-      background: #070b13;
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      overflow: hidden;
-      margin-bottom: 16px;
-    }
-
-    .mode-tabs {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      gap: 5px;
-      z-index: 5;
-    }
-
-    .tab-btn {
-      background: rgba(16, 23, 38, 0.85);
-      backdrop-filter: blur(4px);
-      border: 1px solid #334155;
-      color: #94a3b8;
-      font-size: 0.7rem;
-      padding: 4px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .tab-btn.active {
-      background: #38bdf8;
-      color: #0b1120;
-      font-weight: 700;
-      border-color: #38bdf8;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: 180px;
-    }
-
-    .freq-axis {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 10px;
-      font-size: 0.68rem;
-      color: #475569;
-      background: #090e18;
-      border-top: 1px solid #1e293b;
-    }
-
-    /* Boton de inicio */
-    .main-button {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 10px;
-      font-size: 0.96rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #0284c7;
-      color: white;
-      transition: background 0.2s, transform 0.1s;
-      margin-bottom: 14px;
-    }
-
-    .main-button:hover {
-      background: #0369a1;
-    }
-
-    .main-button:active {
-      transform: scale(0.99);
-    }
-
-    .main-button.active {
-      background: #dc2626;
-    }
-
-    .main-button.active:hover {
-      background: #b91c1c;
-    }
-
-    /* Configuracion de Red */
-    details {
-      background: #090e18;
-      border: 1px solid #1e293b;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 0.82rem;
-      margin-bottom: 14px;
-    }
-
-    summary {
-      font-weight: 600;
-      color: #94a3b8;
-      cursor: pointer;
-      list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .config-body {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .field-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .field-group label {
-      font-size: 0.72rem;
-      color: #cbd5e1;
-      font-weight: 500;
-    }
-
-    input, select {
-      background: #141c2c;
-      border: 1px solid #334155;
-      border-radius: 6px;
-      color: #f1f5f9;
-      padding: 8px 10px;
-      font-size: 0.82rem;
-      outline: none;
-      width: 100%;
-    }
-
-    input:focus, select:focus {
-      border-color: #38bdf8;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .info-footer {
-      font-size: 0.74rem;
-      color: #64748b;
-      text-align: center;
-      line-height: 1.4;
-    }
-
-    .info-footer strong {
-      color: #38bdf8;
-    }
-  </style>
+  <!-- Estilo Base Spark Admin y Estilos de Audio -->
+  <link rel="stylesheet" href="assets/css/main.css">
+  <link rel="stylesheet" href="assets/css/audio-dashboard.css">
 </head>
+
 <body>
 
-  <div class="container">
-    <header>
-      <h1>Transmisor de Audio</h1>
-      <div id="statusBadge" class="status-badge">
-        <span class="dot"></span>
-        <span id="statusLabel">Listo</span>
+  <!-- ==========================================
+       START: Sidebar Component
+       ========================================== -->
+  <div class="sidebar-wrapper">
+    <div class="sidebar-brand">
+      <i class="bi bi-soundwave text-lime"></i>
+      <span>Audio Analytics</span>
+    </div>
+
+    <div class="sidebar-menu-wrapper">
+      <!-- Grupo: Monitoreo -->
+      <div class="sidebar-menu-section">
+        <div class="sidebar-menu-title">Monitoreo</div>
+        <ul class="sidebar-menu-list">
+          <li class="sidebar-menu-item">
+            <a href="index.html" class="sidebar-menu-link active">
+              <i class="bi bi-speedometer2"></i>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li class="sidebar-menu-item">
+            <a href="#seccion-tabla" class="sidebar-menu-link">
+              <i class="bi bi-database"></i>
+              <span>Mediciones (Fase 1)</span>
+            </a>
+          </li>
+          <li class="sidebar-menu-item">
+            <a href="#seccion-r" class="sidebar-menu-link">
+              <i class="bi bi-graph-up"></i>
+              <span>Analisis R (Fases 2/3)</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Grupo: Configuracion -->
+      <div class="sidebar-menu-section">
+        <div class="sidebar-menu-title">Sistema</div>
+        <ul class="sidebar-menu-list">
+          <li class="sidebar-menu-item">
+            <a href="#seccion-config" class="sidebar-menu-link">
+              <i class="bi bi-sliders"></i>
+              <span>Red y Parametros</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Perfil de usuario inferior -->
+    <div class="sidebar-profile">
+      <img src="assets/images/avatar.png" alt="Usuario" class="sidebar-profile-img">
+      <div class="sidebar-profile-info">
+        <div class="sidebar-profile-name">Estadistica 6to Sem</div>
+        <div class="sidebar-profile-email">Proyecto Final</div>
+      </div>
+    </div>
+  </div>
+  <!-- ==========================================
+       END: Sidebar Component
+       ========================================== -->
+
+
+  <!-- ==========================================
+       START: Main Content Area
+       ========================================== -->
+  <div class="main-wrapper">
+
+    <!-- Top Navbar -->
+    <header class="navbar-custom">
+      <div class="navbar-left">
+        <button class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
+          id="desktop-sidebar-toggle" aria-label="Minimizar Sidebar">
+          <i class="bi bi-chevron-bar-left"></i>
+        </button>
+        <button class="sidebar-toggle-btn me-2" id="sidebar-toggle" aria-label="Toggle Navegacion">
+          <i class="bi bi-list"></i>
+        </button>
+        <span class="d-none d-md-inline text-muted small">Sistema de Adquisicion de Datos de Audio</span>
+      </div>
+
+      <div class="navbar-actions">
+        <!-- Indicador de Estado del Transmisor -->
+        <div id="audioStatusPill" class="audio-status-pill me-2">
+          <span class="status-indicator-dot"></span>
+          <span id="audioStatusPillText">Inactivo</span>
+        </div>
+
+        <!-- Pantalla Completa -->
+        <button class="navbar-action-btn me-1" aria-label="Toggle Fullscreen" id="btn-fullscreen">
+          <i class="bi bi-arrows-fullscreen"></i>
+        </button>
       </div>
     </header>
 
-    <!-- Aviso en caso de requerir HTTPS en navegador movil -->
-    <div id="insecureNotice" class="insecure-alert">
-      <strong>Aviso de seguridad:</strong> El navegador movil requiere HTTPS para habilitar el microfono. Si abres el servidor desde un celular, utiliza la URL HTTPS proporcionada por ngrok o configura un tunel seguro.
-    </div>
-
-    <!-- Metricas en Tiempo Real -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-label">Intensidad</div>
-        <div id="valRms" class="metric-val">0%</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Decibeles</div>
-        <div id="valDb" class="metric-val">-∞ dB</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Pico Frecuencia</div>
-        <div id="valPeak" class="metric-val">0 Hz</div>
+    <!-- Header de la Pagina -->
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Dashboard de Captura y Analisis de Audio</h1>
+        <p class="page-subtitle">Monitoreo espectral continuo y transmision hacia servidor backend.</p>
       </div>
     </div>
 
-    <!-- VU Meter Bar -->
-    <div class="vu-meter-bg">
-      <div id="vuFill" class="vu-meter-fill"></div>
+    <!-- Alerta de Contexto Inseguro (HTTP en Celular) -->
+    <div id="audioInsecureAlert" class="audio-insecure-box mb-4">
+      <i class="bi bi-shield-exclamation me-2"></i>
+      <strong>Aviso de seguridad del navegador:</strong> Para habilitar el microfono en dispositivos moviles, se requiere una conexion HTTPS o localhost. Utiliza el tunel seguro de ngrok (<code>ngrok http 8000</code>) o habilita la IP en <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>.
     </div>
 
-    <!-- Espectro / Canvas -->
-    <div class="canvas-container">
-      <div class="mode-tabs">
-        <button id="tabBars" class="tab-btn active" onclick="setMode('bars')">Espectro</button>
-        <button id="tabWave" class="tab-btn" onclick="setMode('wave')">Onda</button>
-      </div>
-      <canvas id="canvas"></canvas>
-      <div id="freqLabels" class="freq-axis">
-        <span>60 Hz</span>
-        <span>250 Hz</span>
-        <span>1 kHz</span>
-        <span>4 kHz</span>
-        <span>12 kHz</span>
-        <span>20 kHz</span>
-      </div>
-    </div>
-
-    <!-- Boton Principal de Iniciar/Detener Captura -->
-    <button id="btnStream" class="main-button">
-      <span id="btnLabel">Iniciar Captura y Envio</span>
-    </button>
-
-    <!-- Configuracion del Envio al Servidor -->
-    <details>
-      <summary>
-        <span>Configuracion de Red y Envio</span>
-        <span>[+]</span>
-      </summary>
-      <div class="config-body">
-        <div class="field-group">
-          <label for="serverUrl">URL del Servidor (WebSocket o HTTP POST):</label>
-          <input type="text" id="serverUrl" value="">
-        </div>
-        <div class="grid-2">
-          <div class="field-group">
-            <label for="protocolMode">Protocolo:</label>
-            <select id="protocolMode">
-              <option value="fetch" selected>Fetch POST (HTTP)</option>
-              <option value="ws">WebSocket</option>
-            </select>
+    <!-- START: Tarjetas KPI Superiores (Estilo Spark Admin) -->
+    <div class="row g-4 mb-4">
+      <!-- Tarjeta 1: Banner Verde de Estado -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card alert-green-card h-100">
+          <div class="position-relative z-index-2">
+            <span class="alert-green-badge">Web Audio API</span>
+            <div class="alert-green-date">Captura Nativa</div>
+            <div class="alert-green-text" id="kpiStateText">Inactivo</div>
           </div>
-          <div class="field-group">
-            <label for="sendRate">Tasa de Envio:</label>
-            <select id="sendRate">
-              <option value="50">50 ms (20 fps)</option>
-              <option value="100" selected>100 ms (10 fps)</option>
-              <option value="200">200 ms (5 fps)</option>
-            </select>
+          <div class="mt-3 z-index-2">
+            <span class="small text-dark font-monospace">PCM Float32 / 44.1 kHz</span>
+          </div>
+
+          <!-- Forma geometrica Spark Admin -->
+          <svg class="alert-green-bg-shape" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(50,50)">
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(60)" />
+              <rect x="-6" y="-45" width="12" height="90" rx="6" ry="6" fill="#B4F105" transform="rotate(120)" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Tarjeta 2: Nivel RMS / Intensidad -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card card-stat h-100 d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header pb-1">
+              <span class="stat-label">Intensidad RMS</span>
+              <i class="bi bi-activity text-info"></i>
+            </div>
+            <div class="stat-value" id="kpiRms">0%</div>
+            <div class="trend-badge trend-up">
+              <i class="bi bi-soundwave"></i>
+              <span>Presion acustica</span>
+            </div>
+          </div>
+          <div class="mt-3">
+            <div class="vu-meter-track">
+              <div id="vuMeterBar" class="vu-meter-bar"></div>
+            </div>
           </div>
         </div>
-        <div class="field-group">
-          <label>
-            <input type="checkbox" id="chkSendRaw" style="width: auto; margin-right: 6px;">
-            Incluir muestras crudas de audio (PCM Float32) en el payload
-          </label>
+      </div>
+
+      <!-- Tarjeta 3: Decibeles (dB) -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card card-stat h-100 d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header pb-1">
+              <span class="stat-label">Nivel de Entrada</span>
+              <i class="bi bi-volume-up text-warning"></i>
+            </div>
+            <div class="stat-value" id="kpiDb">-∞ dB</div>
+            <div class="trend-badge trend-up">
+              <i class="bi bi-graph-up-arrow"></i>
+              <span>Rango relativo</span>
+            </div>
+          </div>
+          <div class="mt-3 small text-muted">
+            Escala calculada: -60 dB a 0 dB
+          </div>
         </div>
       </div>
-    </details>
 
-    <div class="info-footer">
-      Procesamiento y analisis espectral nativo mediante <strong>Web Audio API</strong>
+      <!-- Tarjeta 4: Frecuencia Pico (Hz) -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card card-stat h-100 d-flex flex-column justify-content-between">
+          <div>
+            <div class="card-header pb-1">
+              <span class="stat-label">Frecuencia Dominante</span>
+              <i class="bi bi-broadcast text-primary"></i>
+            </div>
+            <div class="stat-value" id="kpiPeakFreq">0 Hz</div>
+            <div class="trend-badge trend-up">
+              <i class="bi bi-music-note-beamed"></i>
+              <span>Tono espectral</span>
+            </div>
+          </div>
+          <div class="mt-3 small text-muted">
+            Resolucion FFT: 512 puntos
+          </div>
+        </div>
+      </div>
     </div>
+    <!-- END: Tarjetas KPI -->
+
+
+    <!-- START: Grid Principal (Visualizador + Panel Lateral) -->
+    <div class="row g-4">
+
+      <!-- COLUMNA PRINCIPAL (Visualizador de Espectro y Tabla) -->
+      <div class="col-xl-8 col-lg-7">
+
+        <!-- Card: Espectro de Audio en Canvas -->
+        <div class="card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="card-title mb-0">Visualizador de Senal en Tiempo Real</h5>
+              <span class="text-muted small">Representacion grafica continua (60 FPS)</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btnTabBars" class="visualizer-tab-btn active">Espectro (FFT)</button>
+              <button id="btnTabWave" class="visualizer-tab-btn">Osciloscopio</button>
+            </div>
+          </div>
+
+          <div class="card-body p-0">
+            <div class="visualizer-canvas-wrapper">
+              <canvas id="audioVisualizerCanvas"></canvas>
+            </div>
+            <div id="freqAxisLabels" class="visualizer-freq-axis">
+              <span>60 Hz</span>
+              <span>250 Hz</span>
+              <span>1 kHz</span>
+              <span>4 kHz</span>
+              <span>12 kHz</span>
+              <span>20 kHz</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Tabla de Mediciones Recientes (Fase 1) -->
+        <div class="card mb-4" id="seccion-tabla">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="card-title mb-0">Registro de Transmision (Fase 1 - PostgreSQL)</h5>
+              <span class="text-muted small">Ultimos paquetes enviados al endpoint <code>/api/audio-stream</code></span>
+            </div>
+            <span class="badge bg-secondary-subtle text-light font-monospace">
+              Total envios: <span id="packetsCount">0</span>
+            </span>
+          </div>
+
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-custom table-hover table-audio-logs mb-0">
+                <thead>
+                  <tr>
+                    <th>Hora</th>
+                    <th>Decibeles</th>
+                    <th>Intensidad RMS</th>
+                    <th>Frecuencia Pico</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="tableLogsBody">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                      <i class="bi bi-clock-history me-1"></i> No hay transmision activa. Pulsa "Iniciar Captura y Envio".
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLUMNA LATERAL (Control de Envio y Parametros) -->
+      <div class="col-xl-4 col-lg-5">
+
+        <!-- Card: Control de Transmision -->
+        <div class="card mb-4" id="seccion-config">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Control de Adquisicion</h5>
+          </div>
+
+          <div class="card-body">
+            <!-- Boton Principal de Iniciar / Detener -->
+            <button id="btnToggleStream" class="btn-audio-stream btn-start w-100 mb-4">
+              <i id="btnToggleStreamIcon" class="bi bi-play-circle-fill"></i>
+              <span id="btnToggleStreamText">Iniciar Captura y Envio</span>
+            </button>
+
+            <!-- Formulario de Parametros de Red -->
+            <div class="mb-3">
+              <label for="inputServerUrl" class="form-label small fw-bold text-muted">URL del Servidor:</label>
+              <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
+                id="inputServerUrl" value="">
+              <div class="form-text small">Detecta automaticamente localhost o tunel ngrok.</div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="selectProtocol" class="form-label small fw-bold text-muted">Protocolo:</label>
+                <select id="selectProtocol" class="form-select form-select-sm bg-dark text-light border-secondary">
+                  <option value="fetch" selected>Fetch POST</option>
+                  <option value="ws">WebSocket</option>
+                </select>
+              </div>
+
+              <div class="col-6">
+                <label for="selectSendRate" class="form-label small fw-bold text-muted">Intervalo:</label>
+                <select id="selectSendRate" class="form-select form-select-sm bg-dark text-light border-secondary">
+                  <option value="50">50 ms (20 fps)</option>
+                  <option value="100" selected>100 ms (10 fps)</option>
+                  <option value="200">200 ms (5 fps)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="chkSendRaw">
+              <label class="form-check-label small" for="chkSendRaw">
+                Adjuntar muestras PCM (Float32)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Arquitectura del Proyecto -->
+        <div class="card mb-4" id="seccion-r">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Etapas del Proyecto</h5>
+          </div>
+
+          <div class="card-body">
+            <div class="timeline-widget">
+              <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-success-subtle text-success">Fase 1</span>
+                  <strong class="small text-light">Adquisicion y Persistencia</strong>
+                </div>
+                <p class="small text-muted mb-0">Captura en navegador movil, transmision HTTP/WS y registro en base de datos relacional PostgreSQL.</p>
+              </div>
+
+              <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-primary-subtle text-primary">Fase 2</span>
+                  <strong class="small text-light">Estadistica Descriptiva en R</strong>
+                </div>
+                <p class="small text-muted mb-0">Calculo automatizado de media, mediana, varianza y desviacion estandar mediante llamadas a Rscript.</p>
+              </div>
+
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-warning-subtle text-warning">Fase 3</span>
+                  <strong class="small text-light">Modelos Probabilisticos</strong>
+                </div>
+                <p class="small text-muted mb-0">Ajuste de distribuciones binomiales y pruebas de hipotesis para eventos acusticos.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    <!-- END: Grid Principal -->
+
+
+    <!-- Footer Component -->
+    <footer class="footer-custom mt-5">
+      <div class="footer-left">
+        <span class="footer-logo">
+          <i class="bi bi-soundwave text-lime"></i> Audio Analytics
+        </span>
+        <span class="footer-separator">|</span>
+        <span class="footer-copy">Proyecto de Estadistica &copy; 2026</span>
+      </div>
+      <div class="footer-right">
+        <span class="text-muted small">Desarrollado sobre Spark Admin UI</span>
+      </div>
+    </footer>
+
   </div>
+  <!-- ==========================================
+       END: Main Content Area
+       ========================================== -->
 
-  <script>
-    // Referencias DOM
-    const btnStream = document.getElementById('btnStream');
-    const btnLabel = document.getElementById('btnLabel');
-    const statusBadge = document.getElementById('statusBadge');
-    const statusLabel = document.getElementById('statusLabel');
-    const insecureNotice = document.getElementById('insecureNotice');
-    const valRms = document.getElementById('valRms');
-    const valDb = document.getElementById('valDb');
-    const valPeak = document.getElementById('valPeak');
-    const vuFill = document.getElementById('vuFill');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const tabBars = document.getElementById('tabBars');
-    const tabWave = document.getElementById('tabWave');
-    const freqLabels = document.getElementById('freqLabels');
-    const serverUrlInput = document.getElementById('serverUrl');
-    const protocolModeSelect = document.getElementById('protocolMode');
-    const sendRateSelect = document.getElementById('sendRate');
-    const chkSendRaw = document.getElementById('chkSendRaw');
 
-    // Estado de Audio y Transmision
-    let audioCtx = null;
-    let analyserNode = null;
-    let micStream = null;
-    let isRunning = false;
-    let animId = null;
-    let viewMode = 'bars';
-    let socket = null;
-    let sendTimer = null;
+  <!-- Scripts de Terceros Spark Admin -->
+  <script src="assets/libs/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-    // Configurar URL por defecto (detecta automaticamente HTTP o HTTPS / ngrok)
-    const currentHost = window.location.host || 'localhost:8000';
-    const currentProto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    serverUrlInput.value = `${currentProto}//${currentHost}/api/audio-stream`;
+  <!-- Modulos de Audio Organizados -->
+  <script src="assets/js/audio-core.js"></script>
+  <script src="assets/js/audio-visualizer.js"></script>
+  <script src="assets/js/audio-transmitter.js"></script>
+  <script src="assets/js/app.js"></script>
 
-    protocolModeSelect.addEventListener('change', () => {
-      const isHttps = window.location.protocol === 'https:';
-      if (protocolModeSelect.value === 'ws') {
-        serverUrlInput.value = `${isHttps ? 'wss:' : 'ws:'}//${currentHost}/ws/audio`;
-      } else {
-        serverUrlInput.value = `${isHttps ? 'https:' : 'http:'}//${currentHost}/api/audio-stream`;
-      }
-    });
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      insecureNotice.style.display = 'block';
-    }
-
-    function resizeCanvas() {
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = canvas.clientWidth * dpr;
-      canvas.height = canvas.clientHeight * dpr;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function setMode(mode) {
-      viewMode = mode;
-      if (mode === 'bars') {
-        tabBars.classList.add('active');
-        tabWave.classList.remove('active');
-        freqLabels.style.display = 'flex';
-      } else {
-        tabWave.classList.add('active');
-        tabBars.classList.remove('active');
-        freqLabels.style.display = 'none';
-      }
-    }
-
-    function connectWebSocket() {
-      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-        return;
-      }
-      try {
-        const url = serverUrlInput.value.trim();
-        socket = new WebSocket(url);
-
-        socket.onopen = () => {
-          updateStatus('streaming', 'Transmitiendo');
-        };
-
-        socket.onerror = () => {
-          updateStatus('error', 'Error Servidor');
-        };
-
-        socket.onclose = () => {
-          if (isRunning) {
-            updateStatus('error', 'Desconectado');
-          }
-        };
-      } catch (err) {
-        console.error('No se pudo conectar WebSocket:', err);
-      }
-    }
-
-    function updateStatus(state, text) {
-      statusBadge.className = 'status-badge ' + (state === 'streaming' ? 'streaming' : state === 'error' ? 'error' : '');
-      statusLabel.textContent = text;
-    }
-
-    async function startAudioCapture() {
-      try {
-        updateStatus('', 'Iniciando...');
-
-        const constraints = {
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-          }
-        };
-
-        micStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
-
-        analyserNode = audioCtx.createAnalyser();
-        analyserNode.fftSize = 512;
-        analyserNode.smoothingTimeConstant = 0.8;
-
-        const micSource = audioCtx.createMediaStreamSource(micStream);
-        micSource.connect(analyserNode);
-
-        if (protocolModeSelect.value === 'ws') {
-          connectWebSocket();
-        }
-
-        isRunning = true;
-        btnStream.classList.add('active');
-        btnLabel.textContent = 'Detener Captura y Envio';
-        updateStatus('streaming', 'Transmitiendo');
-
-        renderLoop();
-        startDataDispatch();
-
-      } catch (err) {
-        console.error('Error al iniciar microfono:', err);
-        alert('No se pudo acceder al microfono: ' + (err.message || err.name));
-        updateStatus('error', 'Error Microfono');
-        stopAudioCapture();
-      }
-    }
-
-    function stopAudioCapture() {
-      isRunning = false;
-      if (animId) cancelAnimationFrame(animId);
-      if (sendTimer) clearInterval(sendTimer);
-
-      if (micStream) {
-        micStream.getTracks().forEach(t => t.stop());
-        micStream = null;
-      }
-      if (audioCtx && audioCtx.state !== 'closed') {
-        audioCtx.close();
-      }
-      if (socket) {
-        socket.close();
-        socket = null;
-      }
-
-      btnStream.classList.remove('active');
-      btnLabel.textContent = 'Iniciar Captura y Envio';
-      updateStatus('', 'Detenido');
-
-      vuFill.style.width = '0%';
-      valRms.textContent = '0%';
-      valDb.textContent = '-∞ dB';
-      valPeak.textContent = '0 Hz';
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function renderLoop() {
-      if (!isRunning) return;
-      animId = requestAnimationFrame(renderLoop);
-
-      const bufferLen = analyserNode.frequencyBinCount;
-      const freqData = new Uint8Array(bufferLen);
-      const timeData = new Uint8Array(bufferLen);
-
-      analyserNode.getByteFrequencyData(freqData);
-      analyserNode.getByteTimeDomainData(timeData);
-
-      let sumSquares = 0;
-      let peakVal = 0;
-      let peakIndex = 0;
-
-      for (let i = 0; i < bufferLen; i++) {
-        const norm = (timeData[i] - 128) / 128;
-        sumSquares += norm * norm;
-
-        if (freqData[i] > peakVal) {
-          peakVal = freqData[i];
-          peakIndex = i;
-        }
-      }
-
-      const rms = Math.sqrt(sumSquares / bufferLen);
-      const volumePercent = Math.min(100, Math.round(rms * 190));
-      const db = rms > 0.0001 ? Math.max(-60, Math.round(20 * Math.log10(rms))) : -60;
-
-      const nyquist = audioCtx.sampleRate / 2;
-      const peakHz = Math.round((peakIndex * nyquist) / bufferLen);
-
-      valRms.textContent = `${volumePercent}%`;
-      valDb.textContent = `${db} dB`;
-      valPeak.textContent = peakVal > 20 ? `${peakHz} Hz` : '---';
-      vuFill.style.width = `${volumePercent}%`;
-
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      if (viewMode === 'bars') {
-        const barCount = 56;
-        const step = Math.floor(bufferLen / barCount);
-        const barWidth = (w / barCount) - 2;
-
-        for (let i = 0; i < barCount; i++) {
-          let sum = 0;
-          for (let j = 0; j < step; j++) {
-            sum += freqData[i * step + j];
-          }
-          const barHeight = ((sum / step) / 255) * (h * 0.92);
-          const x = i * (barWidth + 2);
-          const y = h - barHeight;
-
-          const grad = ctx.createLinearGradient(0, h, 0, 0);
-          grad.addColorStop(0, '#0284c7');
-          grad.addColorStop(0.5, '#38bdf8');
-          grad.addColorStop(0.85, '#c084fc');
-          grad.addColorStop(1, '#f43f5e');
-
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, Math.max(2, barHeight), [3, 3, 0, 0]);
-          ctx.fill();
-        }
-      } else {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = volumePercent > 5 ? '#38bdf8' : '#475569';
-        ctx.beginPath();
-
-        const sliceWidth = w / bufferLen;
-        let x = 0;
-
-        for (let i = 0; i < bufferLen; i++) {
-          const v = timeData[i] / 128.0;
-          const y = (v * h) / 2;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-          x += sliceWidth;
-        }
-        ctx.lineTo(w, h / 2);
-        ctx.stroke();
-      }
-    }
-
-    function startDataDispatch() {
-      if (sendTimer) clearInterval(sendTimer);
-
-      const intervalMs = parseInt(sendRateSelect.value, 10) || 100;
-
-      sendTimer = setInterval(() => {
-        if (!isRunning || !analyserNode) return;
-
-        const bufferLen = analyserNode.frequencyBinCount;
-        const freqData = new Uint8Array(bufferLen);
-        const timeData = new Float32Array(bufferLen);
-
-        analyserNode.getByteFrequencyData(freqData);
-        analyserNode.getFloatTimeDomainData(timeData);
-
-        let sumSquares = 0;
-        let peakVal = 0;
-        let peakIndex = 0;
-
-        for (let i = 0; i < bufferLen; i++) {
-          sumSquares += timeData[i] * timeData[i];
-          if (freqData[i] > peakVal) {
-            peakVal = freqData[i];
-            peakIndex = i;
-          }
-        }
-
-        const rms = Math.sqrt(sumSquares / bufferLen);
-        const db = rms > 0.0001 ? +(20 * Math.log10(rms)).toFixed(2) : -60.0;
-        const nyquist = audioCtx.sampleRate / 2;
-        const peakHz = Math.round((peakIndex * nyquist) / bufferLen);
-
-        const payload = {
-          timestamp: Date.now(),
-          sampleRate: audioCtx.sampleRate,
-          rms: +rms.toFixed(4),
-          db: db,
-          peakFrequencyHz: peakHz,
-          rawSamples: chkSendRaw.checked ? Array.from(timeData) : undefined
-        };
-
-        const protocol = protocolModeSelect.value;
-        const targetUrl = serverUrlInput.value.trim();
-
-        if (protocol === 'ws') {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify(payload));
-          }
-        } else {
-          fetch(targetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }).catch(() => {});
-        }
-
-      }, intervalMs);
-    }
-
-    btnStream.addEventListener('click', () => {
-      if (!isRunning) {
-        startAudioCapture();
-      } else {
-        stopAudioCapture();
-      }
-    });
-  </script>
 </body>
+
 </html>

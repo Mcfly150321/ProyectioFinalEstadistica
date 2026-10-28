@@ -11,7 +11,13 @@ import subprocess
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 PORT = 8000
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+# Rutas del proyecto:
+# BACKEND_DIR: Carpeta donde reside este script (ProyectoFinal/backend)
+# PROJECT_ROOT: Raiz del proyecto (ProyectoFinal) para servir Front/ e idea/
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
+DIRECTORY = PROJECT_ROOT
 
 
 def insertar_en_postgresql(data):
@@ -56,7 +62,7 @@ def insertar_en_postgresql(data):
     pass
 
 
-def procesar_estadisticas_r(datos_audio, script_path="analisis.R"):
+def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):
     """
     Fases 2 y 3: Invoca Rscript mediante subprocess para calculos estadisticos:
       - Medidas de tendencia central: media, mediana
@@ -65,12 +71,15 @@ def procesar_estadisticas_r(datos_audio, script_path="analisis.R"):
     
     Parametros:
       datos_audio (list | dict): Muestras o metricas a procesar.
-      script_path (str): Ruta al script .R con la logica estadistica.
+      script_name (str): Nombre o ruta del script .R (por defecto en backend/).
     
     Retorna:
       dict | str: Salida procesada generada por Rscript.
     """
     try:
+        # Resolver ruta dentro de backend/ si no es absoluta
+        script_path = script_name if os.path.isabs(script_name) else os.path.join(BACKEND_DIR, script_name)
+
         # Prepara los datos en formato JSON como argumento para Rscript
         argumento_json = json.dumps(datos_audio)
         comando = ["Rscript", script_path, argumento_json]
@@ -84,8 +93,7 @@ def procesar_estadisticas_r(datos_audio, script_path="analisis.R"):
         )
         return proceso.stdout.strip()
     except FileNotFoundError:
-        # Rscript no esta instalado en el PATH aun
-        return "Rscript no encontrado en el sistema."
+        return "Rscript no encontrado en el sistema o script .R ausente."
     except subprocess.CalledProcessError as err:
         return f"Error en ejecucion de Rscript: {err.stderr.strip()}"
     except Exception as ex:
@@ -94,7 +102,17 @@ def procesar_estadisticas_r(datos_audio, script_path="analisis.R"):
 
 class AudioStreamHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        # Servir archivos estaticos desde la raiz del proyecto (donde esta Front/)
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+    def do_GET(self):
+        # Redireccion automatica de la raiz '/' hacia el Dashboard en '/Front/'
+        if self.path in ('/', ''):
+            self.send_response(302)
+            self.send_header('Location', '/Front/')
+            self.end_headers()
+            return
+        super().do_GET()
 
     def do_POST(self):
         # Endpoint para recibir las metricas y muestras continuas del microfono
@@ -124,7 +142,7 @@ class AudioStreamHandler(SimpleHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(b'{"status":"ok"}')
-            except Exception as e:
+            except Exception:
                 self.send_response(400)
                 self.end_headers()
         else:
@@ -139,8 +157,8 @@ class AudioStreamHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        # Suprime logs de peticiones GET/POST repetitivas para mantener limpia la consola
-        if '/api/audio-stream' in args[0]:
+        # Suprime logs de peticiones POST repetitivas para mantener limpia la consola
+        if len(args) > 0 and '/api/audio-stream' in str(args[0]):
             return
         super().log_message(format, *args)
 
@@ -150,7 +168,8 @@ if __name__ == '__main__':
     httpd = HTTPServer(server_address, AudioStreamHandler)
     print("=" * 68)
     print(f"Servidor HTTP listo en el puerto {PORT}")
-    print(f"Directorio local: {DIRECTORY}")
+    print(f"Directorio servido: {DIRECTORY}")
+    print(f"Directorio backend: {BACKEND_DIR}")
     print("=" * 68)
     print("Instrucciones de conexion:")
     print(f"1. Acceso local (misma maquina):")
