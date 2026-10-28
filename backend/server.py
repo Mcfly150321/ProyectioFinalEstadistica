@@ -100,6 +100,36 @@ def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):
         return f"Excepcion en llamada a R: {str(ex)}"
 
 
+def imprimir_vu_metro(db, rms, peak_hz, total_bars=30):
+    """
+    Renderiza una barra VU estilo hardware de sonido en la consola en tiempo real
+    utilizando bloques solidados unicode y degradado de color ANSI (Verde -> Amarillo -> Rojo).
+    """
+    # Mapeo de escala (-60 dB a 0 dB) al numero total de barras
+    active = int(max(0, min(total_bars, ((db + 60) / 60) * total_bars)))
+
+    bar_str = ""
+    for i in range(total_bars):
+        if i < active:
+            if i < 18:
+                bar_str += "\033[32m█\033[0m"  # Nivel normal / Verde
+            elif i < 25:
+                bar_str += "\033[33m█\033[0m"  # Nivel medio / Amarillo
+            else:
+                bar_str += "\033[31m█\033[0m"  # Nivel alto / Rojo
+        else:
+            bar_str += "\033[90m░\033[0m"      # Fondo inactivo / Gris
+
+    line = (
+        f"\r\033[1;36m[AUDIO RECIBIDO]\033[0m "
+        f"\033[1m{db:5.1f} dB\033[0m | "
+        f"RMS: \033[33m{rms:.4f}\033[0m | "
+        f"Pico: \033[35m{peak_hz:5} Hz\033[0m | "
+        f"[{bar_str}]"
+    )
+    print(line, end='', flush=True)
+
+
 class AudioStreamHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         # Servir archivos estaticos desde la raiz del proyecto (donde esta Front/)
@@ -132,10 +162,8 @@ class AudioStreamHandler(SimpleHTTPRequestHandler):
                 # 2. Espacio reservado para analisis estadistico con R (Fases 2 y 3)
                 # resultado_r = procesar_estadisticas_r(data)
 
-                # Visualizacion en consola del nivel de entrada
-                bar_len = int(max(0, min(30, (db + 60) / 2)))
-                vu_bar = '=' * bar_len + '-' * (30 - bar_len)
-                print(f"\r[AUDIO RECIBIDO] {db:6.1f} dB | RMS: {rms:.4f} | Pico: {peak_hz:5} Hz | [{vu_bar}]", end='', flush=True)
+                # Visualizacion en consola del nivel de entrada (Barra VU dinamica)
+                imprimir_vu_metro(db, rms, peak_hz)
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -166,19 +194,19 @@ class AudioStreamHandler(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     server_address = ('0.0.0.0', PORT)
     httpd = HTTPServer(server_address, AudioStreamHandler)
-    print("=" * 68)
-    print(f"Servidor HTTP listo en el puerto {PORT}")
-    print(f"Directorio servido: {DIRECTORY}")
-    print(f"Directorio backend: {BACKEND_DIR}")
-    print("=" * 68)
-    print("Instrucciones de conexion:")
+    print("\033[1;34m" + "=" * 68 + "\033[0m")
+    print(f"\033[1;32mServidor HTTP listo en el puerto {PORT}\033[0m")
+    print(f"Directorio servido: \033[36m{DIRECTORY}\033[0m")
+    print(f"Directorio backend: \033[36m{BACKEND_DIR}\033[0m")
+    print("\033[1;34m" + "=" * 68 + "\033[0m")
+    print("\033[1mInstrucciones de conexion:\033[0m")
     print(f"1. Acceso local (misma maquina):")
-    print(f"   http://localhost:{PORT}/Front/")
+    print(f"   \033[32mhttp://localhost:{PORT}/Front/\033[0m")
     print()
     print("2. Acceso externo seguro mediante ngrok (Recomendado para movil):")
-    print(f"   Ejecuta en otra terminal: ngrok http {PORT}")
-    print("   Abre en el celular la URL HTTPS generada (ej. https://xxxx.ngrok-free.app/Front/)")
-    print("=" * 68)
+    print(f"   Ejecuta en otra terminal: \033[33mngrok http {PORT}\033[0m")
+    print("   Abre en el celular la URL HTTPS generada (ej. \033[32mhttps://xxxx.ngrok-free.app/Front/\033[0m)")
+    print("\033[1;34m" + "=" * 68 + "\033[0m\n")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
