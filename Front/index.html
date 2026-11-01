@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audio Analytics - Dashboard de Monitoreo</title>
+  <title>Audio Analytics - Monitoreo ESP32 INMP441</title>
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/images/favicon.ico">
@@ -23,6 +23,42 @@
 <body>
 
   <!-- ==========================================
+       START: Overlay de Autenticacion (.env WEB_PASSWORD)
+       ========================================== -->
+  <div id="authOverlay" class="auth-overlay">
+    <div class="card auth-card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock text-lime fs-5"></i>
+        <h5 class="card-title mb-0">Acceso al Monitor de Audio</h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Ingresa la clave de acceso configurada en el servidor para visualizar y escuchar el flujo del ESP32 en tiempo real.
+        </p>
+        <form id="authForm">
+          <div class="mb-3">
+            <label for="inputWebPassword" class="form-label small fw-bold text-muted">Clave de Monitoreo:</label>
+            <input type="password" id="inputWebPassword"
+              class="form-control bg-dark text-light border-secondary"
+              placeholder="Ingresa WEB_PASSWORD" required autocomplete="current-password">
+            <div id="authErrorMsg" class="text-danger small mt-2" style="display: none;">
+              <i class="bi bi-exclamation-circle me-1"></i> Clave incorrecta. Intenta de nuevo.
+            </div>
+          </div>
+          <button type="submit" id="btnAuthSubmit" class="btn-audio-stream btn-start w-100">
+            <i class="bi bi-unlock-fill"></i>
+            <span>Desbloquear Panel de Monitoreo</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- ==========================================
+       END: Overlay de Autenticacion
+       ========================================== -->
+
+
+  <!-- ==========================================
        START: Sidebar Component
        ========================================== -->
   <div class="sidebar-wrapper">
@@ -34,37 +70,24 @@
     <div class="sidebar-menu-wrapper">
       <!-- Grupo: Monitoreo -->
       <div class="sidebar-menu-section">
-        <div class="sidebar-menu-title">Monitoreo</div>
+        <div class="sidebar-menu-title">Monitoreo ESP32</div>
         <ul class="sidebar-menu-list">
           <li class="sidebar-menu-item">
-            <a href="index.html" class="sidebar-menu-link active">
+            <a href="#seccion-espectro" class="sidebar-menu-link active">
               <i class="bi bi-speedometer2"></i>
-              <span>Dashboard</span>
+              <span>Espectro y Osciloscopio</span>
             </a>
           </li>
           <li class="sidebar-menu-item">
             <a href="#seccion-tabla" class="sidebar-menu-link">
               <i class="bi bi-database"></i>
-              <span>Mediciones (Fase 1)</span>
+              <span>Data Monitoreada (Fase 1)</span>
             </a>
           </li>
           <li class="sidebar-menu-item">
             <a href="#seccion-r" class="sidebar-menu-link">
               <i class="bi bi-graph-up"></i>
               <span>Analisis R (Fases 2/3)</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-
-      <!-- Grupo: Configuracion -->
-      <div class="sidebar-menu-section">
-        <div class="sidebar-menu-title">Sistema</div>
-        <ul class="sidebar-menu-list">
-          <li class="sidebar-menu-item">
-            <a href="#seccion-config" class="sidebar-menu-link">
-              <i class="bi bi-sliders"></i>
-              <span>Red y Parametros</span>
             </a>
           </li>
         </ul>
@@ -100,18 +123,29 @@
         <button class="sidebar-toggle-btn me-2" id="sidebar-toggle" aria-label="Toggle Navegacion">
           <i class="bi bi-list"></i>
         </button>
-        <span class="d-none d-md-inline text-muted small">Sistema de Adquisicion de Datos de Audio</span>
+        <span class="d-none d-md-inline text-muted small">Recepcion Remota ESP32 + INMP441</span>
       </div>
 
       <div class="navbar-actions">
-        <!-- Indicador de Estado del Transmisor -->
-        <div id="audioStatusPill" class="audio-status-pill me-2">
+        <!-- Indicador de Conexion del ESP32 -->
+        <div id="navEspConnPill" class="audio-status-pill error me-2" title="Estado de conexion del ESP32">
           <span class="status-indicator-dot"></span>
-          <span id="audioStatusPillText">Inactivo</span>
+          <span id="navEspConnText">ESP32: Desconectado</span>
         </div>
 
+        <!-- Indicador de Transmision de Sonido del ESP32 -->
+        <div id="navEspRecPill" class="audio-status-pill me-2" title="Estado de envio de audio del ESP32">
+          <span class="status-indicator-dot"></span>
+          <span id="navEspRecText">Audio: Inactivo</span>
+        </div>
+
+        <!-- Boton bloquear / cambiar clave -->
+        <button class="navbar-action-btn me-1" aria-label="Cerrar Sesion" id="btn-logout" title="Bloquear panel">
+          <i class="bi bi-lock"></i>
+        </button>
+
         <!-- Pantalla Completa -->
-        <button class="navbar-action-btn me-1" aria-label="Toggle Fullscreen" id="btn-fullscreen">
+        <button class="navbar-action-btn me-1" aria-label="Toggle Fullscreen" id="btn-fullscreen" title="Pantalla completa">
           <i class="bi bi-arrows-fullscreen"></i>
         </button>
       </div>
@@ -120,29 +154,23 @@
     <!-- Header de la Pagina -->
     <div class="page-header">
       <div>
-        <h1 class="page-title">Dashboard de Captura y Analisis de Audio</h1>
-        <p class="page-subtitle">Monitoreo espectral continuo y transmision hacia servidor backend.</p>
+        <h1 class="page-title">Monitoreo de Audio en Tiempo Real (ESP32)</h1>
+        <p class="page-subtitle">Visualizacion espectral y metricas acusticas recibidas desde el modulo INMP441.</p>
       </div>
-    </div>
-
-    <!-- Alerta de Contexto Inseguro (HTTP en Celular) -->
-    <div id="audioInsecureAlert" class="audio-insecure-box mb-4">
-      <i class="bi bi-shield-exclamation me-2"></i>
-      <strong>Aviso de seguridad del navegador:</strong> Para habilitar el microfono en dispositivos moviles, se requiere una conexion HTTPS o localhost. Utiliza el tunel seguro de ngrok (<code>ngrok http 8000</code>) o habilita la IP en <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>.
     </div>
 
     <!-- START: Tarjetas KPI Superiores (Estilo Spark Admin) -->
     <div class="row g-4 mb-4">
-      <!-- Tarjeta 1: Banner Verde de Estado -->
+      <!-- Tarjeta 1: Banner Verde de Estado del Sensor -->
       <div class="col-xl-3 col-md-6">
         <div class="card alert-green-card h-100">
           <div class="position-relative z-index-2">
-            <span class="alert-green-badge">Web Audio API</span>
-            <div class="alert-green-date">Captura Nativa</div>
-            <div class="alert-green-text" id="kpiStateText">Inactivo</div>
+            <span class="alert-green-badge">INMP441 I2S</span>
+            <div class="alert-green-date" id="kpiEspStatusDate">ESP32 Desconectado</div>
+            <div class="alert-green-text" id="kpiStateText">En espera de senal</div>
           </div>
           <div class="mt-3 z-index-2">
-            <span class="small text-dark font-monospace">PCM Float32 / 44.1 kHz</span>
+            <span class="small text-dark font-monospace">PCM 16-bit / 16.0 kHz</span>
           </div>
 
           <!-- Forma geometrica Spark Admin -->
@@ -213,7 +241,7 @@
             </div>
           </div>
           <div class="mt-3 small text-muted">
-            Resolucion FFT: 512 puntos
+            Muestreo ESP32: 16,000 Hz
           </div>
         </div>
       </div>
@@ -222,7 +250,7 @@
 
 
     <!-- START: Grid Principal (Visualizador + Panel Lateral) -->
-    <div class="row g-4">
+    <div class="row g-4" id="seccion-espectro">
 
       <!-- COLUMNA PRINCIPAL (Visualizador de Espectro y Tabla) -->
       <div class="col-xl-8 col-lg-7">
@@ -231,8 +259,8 @@
         <div class="card mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-              <h5 class="card-title mb-0">Visualizador de Senal en Tiempo Real</h5>
-              <span class="text-muted small">Representacion grafica continua (60 FPS)</span>
+              <h5 class="card-title mb-0">Espectro y Osciloscopio en Tiempo Real</h5>
+              <span class="text-muted small">Senal recibida desde el microfono digital INMP441 (60 FPS)</span>
             </div>
             <div class="d-flex gap-2">
               <button id="btnTabBars" class="visualizer-tab-btn active">Espectro (FFT)</button>
@@ -248,9 +276,9 @@
               <span>60 Hz</span>
               <span>250 Hz</span>
               <span>1 kHz</span>
-              <span>4 kHz</span>
-              <span>12 kHz</span>
-              <span>20 kHz</span>
+              <span>2.5 kHz</span>
+              <span>5 kHz</span>
+              <span>8 kHz</span>
             </div>
           </div>
         </div>
@@ -259,11 +287,11 @@
         <div class="card mb-4" id="seccion-tabla">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-              <h5 class="card-title mb-0">Registro de Transmision (Fase 1 - PostgreSQL)</h5>
-              <span class="text-muted small">Ultimos paquetes enviados al endpoint <code>/api/audio-stream</code></span>
+              <h5 class="card-title mb-0">Data Monitoreada del ESP32 (Fase 1 - PostgreSQL)</h5>
+              <span class="text-muted small">Ultimos bloques de audio recibidos desde <code>/ws/esp</code></span>
             </div>
             <span class="badge bg-secondary-subtle text-light font-monospace">
-              Total envios: <span id="packetsCount">0</span>
+              Bloques recibidos: <span id="packetsCount">0</span>
             </span>
           </div>
 
@@ -282,7 +310,7 @@
                 <tbody id="tableLogsBody">
                   <tr>
                     <td colspan="5" class="text-center text-muted py-4">
-                      <i class="bi bi-clock-history me-1"></i> No hay transmision activa. Pulsa "Iniciar Captura y Envio".
+                      <i class="bi bi-clock-history me-1"></i> Esperando transmision de datos desde el ESP32...
                     </td>
                   </tr>
                 </tbody>
@@ -293,54 +321,39 @@
 
       </div>
 
-      <!-- COLUMNA LATERAL (Control de Envio y Parametros) -->
+      <!-- COLUMNA LATERAL (Estado del ESP32 y Reproduccion) -->
       <div class="col-xl-4 col-lg-5">
 
-        <!-- Card: Control de Transmision -->
-        <div class="card mb-4" id="seccion-config">
+        <!-- Card: Estado del ESP32 y Reproduccion -->
+        <div class="card mb-4">
           <div class="card-header">
-            <h5 class="card-title mb-0">Control de Adquisicion</h5>
+            <h5 class="card-title mb-0">Monitoreo y Reproduccion</h5>
           </div>
 
           <div class="card-body">
-            <!-- Boton Principal de Iniciar / Detener -->
-            <button id="btnToggleStream" class="btn-audio-stream btn-start w-100 mb-4">
-              <i id="btnToggleStreamIcon" class="bi bi-play-circle-fill"></i>
-              <span id="btnToggleStreamText">Iniciar Captura y Envio</span>
+            <!-- Indicadores de Estado del Hardware ESP32 -->
+            <div class="esp-status-box mb-4">
+              <div class="esp-status-row">
+                <span class="small text-muted fw-semibold">
+                  <i class="bi bi-cpu me-1"></i> Conexion ESP32:
+                </span>
+                <span id="cardEspConnBadge" class="badge bg-danger-subtle text-danger">Desconectado</span>
+              </div>
+              <div class="esp-status-row">
+                <span class="small text-muted fw-semibold">
+                  <i class="bi bi-mic me-1"></i> Envio de Sonido:
+                </span>
+                <span id="cardEspRecBadge" class="badge bg-secondary-subtle text-secondary">Inactivo</span>
+              </div>
+            </div>
+
+            <!-- Unico Boton de Accion: Reproducir / Silenciar lo que manda el ESP32 -->
+            <button id="btnTogglePlayback" class="btn-audio-stream btn-start w-100">
+              <i id="btnTogglePlaybackIcon" class="bi bi-volume-up-fill"></i>
+              <span id="btnTogglePlaybackText">Activar Reproduccion de Audio</span>
             </button>
-
-            <!-- Formulario de Parametros de Red -->
-            <div class="mb-3">
-              <label for="inputServerUrl" class="form-label small fw-bold text-muted">URL del Servidor:</label>
-              <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
-                id="inputServerUrl" value="">
-              <div class="form-text small">Detecta automaticamente localhost o tunel ngrok.</div>
-            </div>
-
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label for="selectProtocol" class="form-label small fw-bold text-muted">Protocolo:</label>
-                <select id="selectProtocol" class="form-select form-select-sm bg-dark text-light border-secondary">
-                  <option value="fetch" selected>Fetch POST</option>
-                  <option value="ws">WebSocket</option>
-                </select>
-              </div>
-
-              <div class="col-6">
-                <label for="selectSendRate" class="form-label small fw-bold text-muted">Intervalo:</label>
-                <select id="selectSendRate" class="form-select form-select-sm bg-dark text-light border-secondary">
-                  <option value="50">50 ms (20 fps)</option>
-                  <option value="100" selected>100 ms (10 fps)</option>
-                  <option value="200">200 ms (5 fps)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" id="chkSendRaw">
-              <label class="form-check-label small" for="chkSendRaw">
-                Adjuntar muestras PCM (Float32)
-              </label>
+            <div class="form-text small text-center mt-2">
+              Reproduce en tus altavoces el audio capturado por el ESP32.
             </div>
           </div>
         </div>
@@ -356,9 +369,9 @@
               <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2 mb-1">
                   <span class="badge bg-success-subtle text-success">Fase 1</span>
-                  <strong class="small text-light">Adquisicion y Persistencia</strong>
+                  <strong class="small text-light">Adquisicion ESP32 y Persistencia</strong>
                 </div>
-                <p class="small text-muted mb-0">Captura en navegador movil, transmision HTTP/WS y registro en base de datos relacional PostgreSQL.</p>
+                <p class="small text-muted mb-0">Captura digital I2S con INMP441 en ESP32, recepcion WebSocket autenticada y registro en PostgreSQL.</p>
               </div>
 
               <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
@@ -409,7 +422,7 @@
   <!-- Scripts de Terceros Spark Admin -->
   <script src="assets/libs/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Modulos de Audio Organizados -->
+  <!-- Modulos de Monitoreo de Audio -->
   <script src="assets/js/audio-core.js"></script>
   <script src="assets/js/audio-visualizer.js"></script>
   <script src="assets/js/audio-transmitter.js"></script>

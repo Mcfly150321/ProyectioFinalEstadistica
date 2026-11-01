@@ -1,138 +1,132 @@
 /**
  * audio-transmitter.js
- * Modulo de transmision continua de datos hacia el servidor (ngrok / backend local).
- * Soporta Fetch POST (HTTP) y WebSocket (WS).
+ * Cliente WebSocket de Monitoreo (/ws/client).
+ * Recibe en tiempo real el flujo de audio binario del ESP32 y su estado de conexion/grabacion.
+ * No envia audio desde el navegador.
  */
 
-class AudioTransmitter {
+class EspMonitorClient {
   constructor(audioCore, options = {}) {
     this.audioCore = audioCore;
-    this.protocol = options.protocol || 'fetch'; // 'fetch' o 'ws'
-    this.serverUrl = options.serverUrl || '/api/audio-stream';
-    this.rateMs = options.rateMs || 100;
-    this.sendRaw = options.sendRaw || false;
-
-    this.timer = null;
+    this.password = options.password || '';
     this.socket = null;
-    this.isTransmitting = false;
+    this.reconnectTimer = null;
+    this.shouldReconnect = false;
 
-    // Callbacks
-    this.onStatusChange = options.onStatusChange || (() => {});
-    this.onPacketSent = options.onPacketSent || (() => {});
+    this.onEspStatusChange = options.onEspStatusChange || (() => {});
+    this.onPacketReceived = options.onPacketReceived || (() => {});
+    this.onAuthError = options.onAuthError || (() => {});
   }
 
-  setProtocol(protocol) {
-    this.protocol = protocol;
-  }
-
-  setServerUrl(url) {
-    this.serverUrl = url;
-  }
-
-  setRate(rateMs) {
-    this.rateMs = rateMs;
-    if (this.isTransmitting) {
-      this.stop();
-      this.start();
+  /**
+   * Verifica la clave WEB_PASSWORD contra el endpoint /api/auth.
+   */
+  async verifyPassword(password) {
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      return Boolean(data.authenticated);
+    } catch (err) {
+      console.error('Error al verificar clave:', err);
+      return false;
     }
   }
 
-  setSendRaw(sendRaw) {
-    this.sendRaw = sendRaw;
+  /**
+   * Inicia la conexion WebSocket autenticada con el servidor para monitorear al ESP32.
+   */
+  connect(password) {
+    if (password !== undefined) {
+      this.password = password;
+    }
+    this.shouldReconnect = true;
+    this.openSocket();
   }
 
-  start() {
-    if (this.isTransmitting) return;
-    this.isTransmitting = true;
-
-    if (this.protocol === 'ws') {
-      this.initWebSocket();
-    } else {
-      this.onStatusChange('active', 'Transmitiendo via HTTP POST');
+  openSocket() {
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch (e) {}
+      this.socket = null;
     }
 
-    this.timer = setInterval(() => this.dispatchPacket(), this.rateMs);
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host || 'localhost:5000';
+    const encodedPass = encodeURIComponent(this.password);
+    const wsUrl = `${wsProto}//${host}/ws/client?password=${encodedPass}`;
+
+    try {
+      this.socket = new WebSocket(wsUrl);
+      this.socket.binaryType = 'arraybuffer';
+
+      this.socket.onopen = () => {
+        console.log('[Monitor] Conectado al servidor de monitoreo.');
+      };
+
+      this.socket.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'status') {
+              this.onEspStatusChange({
+                espConnected: Boolean(msg.esp_connected),
+                recording: Boolean(msg.recording)
+              });
+            }
+          } catch (e) {
+            console.warn('Mensaje JSON invalido:', e);
+          }
+        } else {
+          // Paquete binario PCM16 proveniente del ESP32
+          const buffer = event.data instanceof ArrayBuffer
+            ? event.data
+            : await event.data.arrayBuffer();
+
+          const snapshot = this.audioCore.feedPcm16(buffer);
+          if (snapshot) {
+            this.onPacketReceived(snapshot);
+          }
+        }
+      };
+
+      this.socket.onclose = (event) => {
+        // Codigo 1008 indica rechazo por clave incorrecta
+        if (event.code === 1008) {
+          this.shouldReconnect = false;
+          this.onAuthError();
+          return;
+        }
+        this.onEspStatusChange({ espConnected: false, recording: false });
+        if (this.shouldReconnect) {
+          this.reconnectTimer = setTimeout(() => this.openSocket(), 3000);
+        }
+      };
+
+      this.socket.onerror = () => {
+        // Manejado en onclose
+      };
+    } catch (err) {
+      console.error('Error al abrir WebSocket:', err);
+    }
   }
 
-  stop() {
-    this.isTransmitting = false;
-
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+  disconnect() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-
     if (this.socket) {
       this.socket.close();
       this.socket = null;
     }
-
-    this.onStatusChange('idle', 'Detenido');
-  }
-
-  initWebSocket() {
-    try {
-      this.onStatusChange('connecting', 'Conectando WebSocket...');
-      this.socket = new WebSocket(this.serverUrl);
-
-      this.socket.onopen = () => {
-        this.onStatusChange('active', 'WebSocket Conectado');
-      };
-
-      this.socket.onerror = (err) => {
-        this.onStatusChange('error', 'Error en conexion WebSocket');
-      };
-
-      this.socket.onclose = () => {
-        if (this.isTransmitting) {
-          this.onStatusChange('error', 'WebSocket Desconectado');
-        }
-      };
-    } catch (err) {
-      this.onStatusChange('error', 'Error al crear WebSocket');
-    }
-  }
-
-  dispatchPacket() {
-    if (!this.isTransmitting) return;
-
-    const snapshot = this.audioCore.getSnapshot();
-    if (!snapshot) return;
-
-    const payload = {
-      timestamp: snapshot.timestamp,
-      sampleRate: snapshot.sampleRate,
-      rms: snapshot.rms,
-      db: snapshot.db,
-      peakFrequencyHz: snapshot.peakFrequencyHz,
-      rawSamples: this.sendRaw ? Array.from(snapshot.timeFloatData) : undefined
-    };
-
-    if (this.protocol === 'ws') {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(JSON.stringify(payload));
-        this.onPacketSent(payload);
-      }
-    } else {
-      // Fetch POST continuo (no bloqueante)
-      fetch(this.serverUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(res => {
-        if (res.ok) {
-          this.onPacketSent(payload);
-        }
-      })
-      .catch(() => {
-        // En caso de corte momentaneo de red
-      });
-    }
   }
 }
 
-window.AudioTransmitter = AudioTransmitter;
-
+window.EspMonitorClient = EspMonitorClient;

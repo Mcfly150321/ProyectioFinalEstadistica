@@ -1,42 +1,78 @@
 #!/usr/bin/env python3
 """
-Servidor HTTP ligero para servir el Frontend y recibir el stream de audio.
-Preparado para integracion con ngrok, PostgreSQL (Fase 1) y RStudio/Rscript (Fases 2 y 3).
-Utiliza unicamente la biblioteca estandar de Python.
+Servidor unificado FastAPI + WebSockets para recepcion de audio desde ESP32 (INMP441)
+y panel de monitoreo web en Front/.
+Configurado para instancia de Oracle Cloud (0.0.0.0:5000) con autenticacion mediante .env,
+preparado para PostgreSQL (Fase 1) y RStudio / Rscript (Fases 2 y 3).
 """
 
 import json
+import math
 import os
+import struct
 import subprocess
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+import time
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
-PORT = 8000
-
-# Rutas del proyecto:
-# BACKEND_DIR: Carpeta donde reside este script (ProyectoFinal/backend)
-# PROJECT_ROOT: Raiz del proyecto (ProyectoFinal) para servir Front/ e idea/
+# =========================================================================
+# 1. CARGA DE CONFIGURACION Y VARIABLES DE ENTORNO (.env)
+# =========================================================================
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
-DIRECTORY = PROJECT_ROOT
 
 
+def cargar_variables_env():
+    """
+    Lee el archivo .env desde la raiz del proyecto o el directorio actual
+    sin requerir librerias externas adicionales.
+    """
+    posibles_rutas = [
+        os.path.join(PROJECT_ROOT, ".env"),
+        os.path.join(BACKEND_DIR, ".env"),
+        os.path.join(os.getcwd(), ".env"),
+    ]
+    for ruta in posibles_rutas:
+        if os.path.isfile(ruta):
+            with open(ruta, "r", encoding="utf-8") as f:
+                for linea in f:
+                    linea = linea.strip()
+                    if not linea or linea.startswith("#") or "=" not in linea:
+                        continue
+                    clave, valor = linea.split("=", 1)
+                    clave = clave.strip()
+                    valor = valor.strip().strip('"').strip("'")
+                    os.environ.setdefault(clave, valor)
+            break
+
+
+cargar_variables_env()
+
+ESP_TOKEN = os.environ.get("ESP_TOKEN", "EstadisticaProyecto123*esp32_123")
+WEB_PASSWORD = os.environ.get("WEB_PASSWORD", "Estadistica2026**++")
+PORT = int(os.environ.get("PORT", 5000))
+SAMPLE_RATE = 16000
+
+
+# =========================================================================
+# 2. INTEGRACIONES FUTURAS: POSTGRESQL (FASE 1) Y RSCRIPT (FASES 2 Y 3)
+# =========================================================================
 def insertar_en_postgresql(data):
     """
     Fase 1: Espacio reservado para persistencia en base de datos PostgreSQL.
-    
-    Estructura esperada del payload (data):
-      - timestamp: int (milisegundos)
-      - sampleRate: int (ej. 44100)
+
+    Estructura de data:
+      - timestamp: int (ms)
+      - sampleRate: int (16000)
       - rms: float
       - db: float
       - peakFrequencyHz: int
-      - rawSamples: list[float] (opcional)
     """
     # =========================================================================
     # BLOQUE POSTGRESQL (FASE 1)
     # =========================================================================
-    # Para activar cuando se configure PostgreSQL:
-    #
     # import psycopg2
     # conn = psycopg2.connect(
     #     dbname="estadistica_db",
@@ -68,23 +104,12 @@ def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):
       - Medidas de tendencia central: media, mediana
       - Dispersion: desviacion estandar, varianza
       - Modelos probabilisticos / binomiales
-    
-    Parametros:
-      datos_audio (list | dict): Muestras o metricas a procesar.
-      script_name (str): Nombre o ruta del script .R (por defecto en backend/).
-    
-    Retorna:
-      dict | str: Salida procesada generada por Rscript.
     """
     try:
-        # Resolver ruta dentro de backend/ si no es absoluta
         script_path = script_name if os.path.isabs(script_name) else os.path.join(BACKEND_DIR, script_name)
-
-        # Prepara los datos en formato JSON como argumento para Rscript
         argumento_json = json.dumps(datos_audio)
         comando = ["Rscript", script_path, argumento_json]
 
-        # Ejecucion limpia sin shells intermedias
         proceso = subprocess.run(
             comando,
             capture_output=True,
@@ -100,114 +125,243 @@ def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):
         return f"Excepcion en llamada a R: {str(ex)}"
 
 
+# =========================================================================
+# 3. ANALISIS DE BLOQUES PCM Y VUMETRO EN CONSOLA
+# =========================================================================
+def analizar_bloque_pcm16(audio_bytes, sample_rate=SAMPLE_RATE):
+    """
+    Calcula RMS, decibeles (dBFS) y frecuencia estimada a partir de los bytes
+    PCM de 16 bits con signo enviados por el ESP32.
+    """
+    num_samples = len(audio_bytes) // 2
+    if num_samples == 0:
+        return {"timestamp": int(time.time() * 1000), "sampleRate": sample_rate, "rms": 0.0, "db": -60.0, "peakFrequencyHz": 0}
+
+    samples = struct.unpack(f"<{num_samples}h", audio_bytes[:num_samples * 2])
+
+    sum_squares = 0.0
+    zero_crossings = 0
+    prev_s = samples[0]
+
+    for s in samples:
+        norm = s / 32768.0
+        sum_squares += norm * norm
+        if (prev_s < 0 <= s) or (prev_s >= 0 > s):
+            zero_crossings += 1
+        prev_s = s
+
+    rms = math.sqrt(sum_squares / num_samples)
+    db = max(-60.0, round(20.0 * math.log10(rms), 2)) if rms > 0.0001 else -60.0
+
+    # Estimacion rapida de frecuencia dominante por cruces por cero
+    duration_sec = num_samples / float(sample_rate)
+    est_freq = int((zero_crossings / 2.0) / duration_sec) if rms > 0.01 and duration_sec > 0 else 0
+
+    return {
+        "timestamp": int(time.time() * 1000),
+        "sampleRate": sample_rate,
+        "rms": round(rms, 4),
+        "db": db,
+        "peakFrequencyHz": est_freq
+    }
+
+
 def imprimir_vu_metro(db, rms, peak_hz, total_bars=30):
     """
-    Renderiza una barra VU estilo hardware de sonido en la consola en tiempo real
-    utilizando bloques solidados unicode y degradado de color ANSI (Verde -> Amarillo -> Rojo).
+    Renderiza una barra VU en tiempo real en la consola utilizando bloques
+    unicode y degradado de color ANSI (Verde -> Amarillo -> Rojo).
     """
-    # Mapeo de escala (-60 dB a 0 dB) al numero total de barras
     active = int(max(0, min(total_bars, ((db + 60) / 60) * total_bars)))
 
     bar_str = ""
     for i in range(total_bars):
         if i < active:
             if i < 18:
-                bar_str += "\033[32m█\033[0m"  # Nivel normal / Verde
+                bar_str += "\033[32m█\033[0m"
             elif i < 25:
-                bar_str += "\033[33m█\033[0m"  # Nivel medio / Amarillo
+                bar_str += "\033[33m█\033[0m"
             else:
-                bar_str += "\033[31m█\033[0m"  # Nivel alto / Rojo
+                bar_str += "\033[31m█\033[0m"
         else:
-            bar_str += "\033[90m░\033[0m"      # Fondo inactivo / Gris
+            bar_str += "\033[90m░\033[0m"
 
     line = (
-        f"\r\033[1;36m[AUDIO RECIBIDO]\033[0m "
+        f"\r\033[1;36m[ESP32 AUDIO]\033[0m "
         f"\033[1m{db:5.1f} dB\033[0m | "
         f"RMS: \033[33m{rms:.4f}\033[0m | "
         f"Pico: \033[35m{peak_hz:5} Hz\033[0m | "
         f"[{bar_str}]"
     )
-    print(line, end='', flush=True)
+    print(line, end="", flush=True)
 
 
-class AudioStreamHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        # Servir archivos estaticos desde la raiz del proyecto (donde esta Front/)
-        super().__init__(*args, directory=DIRECTORY, **kwargs)
+# =========================================================================
+# 4. APLICACION FASTAPI Y RUTAS WEBSOCKET / HTTP
+# =========================================================================
+app = FastAPI(title="Audio Analytics Server - ESP32 & Oracle")
 
-    def do_GET(self):
-        # Redireccion automatica de la raiz '/' hacia el Dashboard en '/Front/'
-        if self.path in ('/', ''):
-            self.send_response(302)
-            self.send_header('Location', '/Front/')
-            self.end_headers()
-            return
-        super().do_GET()
+esp_connection: WebSocket | None = None
+browser_connections: set[WebSocket] = set()
+is_recording: bool = False
 
-    def do_POST(self):
-        # Endpoint para recibir las metricas y muestras continuas del microfono
-        if self.path == '/api/audio-stream':
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-
-            try:
-                data = json.loads(post_data.decode('utf-8'))
-                db = data.get('db', 0)
-                rms = data.get('rms', 0)
-                peak_hz = data.get('peakFrequencyHz', 0)
-
-                # 1. Espacio reservado para almacenar en PostgreSQL (Fase 1)
-                insertar_en_postgresql(data)
-
-                # 2. Espacio reservado para analisis estadistico con R (Fases 2 y 3)
-                # resultado_r = procesar_estadisticas_r(data)
-
-                # Visualizacion en consola del nivel de entrada (Barra VU dinamica)
-                imprimir_vu_metro(db, rms, peak_hz)
-
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(b'{"status":"ok"}')
-            except Exception:
-                self.send_response(400)
-                self.end_headers()
-        else:
-            self.send_error(404, "Endpoint no encontrado")
-
-    def do_OPTIONS(self):
-        # Soporte para CORS en caso de pruebas externas o tuneles ngrok
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-
-    def log_message(self, format, *args):
-        # Suprime logs de peticiones POST repetitivas para mantener limpia la consola
-        if len(args) > 0 and '/api/audio-stream' in str(args[0]):
-            return
-        super().log_message(format, *args)
+# Localizar carpeta Front/
+FRONT_DIR = os.path.join(PROJECT_ROOT, "Front")
+if not os.path.isdir(FRONT_DIR):
+    FRONT_DIR = os.path.join(BACKEND_DIR, "Front")
 
 
-if __name__ == '__main__':
-    server_address = ('0.0.0.0', PORT)
-    httpd = HTTPServer(server_address, AudioStreamHandler)
-    print("\033[1;34m" + "=" * 68 + "\033[0m")
-    print(f"\033[1;32mServidor HTTP listo en el puerto {PORT}\033[0m")
-    print(f"Directorio servido: \033[36m{DIRECTORY}\033[0m")
-    print(f"Directorio backend: \033[36m{BACKEND_DIR}\033[0m")
-    print("\033[1;34m" + "=" * 68 + "\033[0m")
-    print("\033[1mInstrucciones de conexion:\033[0m")
-    print(f"1. Acceso local (misma maquina):")
-    print(f"   \033[32mhttp://localhost:{PORT}/Front/\033[0m")
-    print()
-    print("2. Acceso externo seguro mediante ngrok (Recomendado para movil):")
-    print(f"   Ejecuta en otra terminal: \033[33mngrok http {PORT}\033[0m")
-    print("   Abre en el celular la URL HTTPS generada (ej. \033[32mhttps://xxxx.ngrok-free.app/Front/\033[0m)")
-    print("\033[1;34m" + "=" * 68 + "\033[0m\n")
+@app.get("/")
+async def root_redirect():
+    return RedirectResponse(url="/Front/index.html")
+
+
+@app.post("/api/auth")
+async def verificar_clave(request: Request):
+    """
+    Verifica la clave WEB_PASSWORD ingresada por el usuario en el panel de monitoreo.
+    """
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nServidor detenido.")
+        body = await request.json()
+        password = body.get("password", "")
+    except Exception:
+        password = ""
+
+    if password == WEB_PASSWORD:
+        return JSONResponse({"authenticated": True, "status": "ok"})
+    return JSONResponse({"authenticated": False, "error": "Clave incorrecta"}, status_code=401)
+
+
+async def broadcast_status():
+    """
+    Notifica a todos los clientes web conectados el estado actual del ESP32.
+    """
+    status_data = json.dumps({
+        "type": "status",
+        "esp_connected": esp_connection is not None,
+        "recording": is_recording
+    })
+    desconectados = []
+    for client in list(browser_connections):
+        try:
+            await client.send_text(status_data)
+        except Exception:
+            desconectados.append(client)
+    for c in desconectados:
+        browser_connections.discard(c)
+
+
+@app.websocket("/ws/esp")
+async def websocket_esp(websocket: WebSocket):
+    """
+    Endpoint exclusivo para el ESP32. Valida ESP_TOKEN antes de aceptar datos.
+    """
+    global esp_connection, is_recording
+
+    token_query = websocket.query_params.get("token", "")
+    token_header = websocket.headers.get("x-esp-token", "")
+    token_recibido = token_query or token_header
+
+    if token_recibido != ESP_TOKEN:
+        print("\n\033[1;31m[SEGURIDAD] Conexion de ESP32 rechazada: ESP_TOKEN invalido.\033[0m")
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    esp_connection = websocket
+    print("\n\033[1;32m[ESP32] Dispositivo autenticado y conectado.\033[0m")
+    await broadcast_status()
+
+    try:
+        while True:
+            message = await websocket.receive()
+
+            if message.get("type") == "websocket.disconnect":
+                break
+
+            if "bytes" in message and message["bytes"] is not None:
+                if is_recording:
+                    audio_data = message["bytes"]
+
+                    # 1. Analizar bloque PCM y mostrar vumetro en consola
+                    metricas = analizar_bloque_pcm16(audio_data)
+                    imprimir_vu_metro(metricas["db"], metricas["rms"], metricas["peakFrequencyHz"])
+
+                    # 2. Guardar en PostgreSQL (Fase 1)
+                    insertar_en_postgresql(metricas)
+
+                    # 3. Retransmitir audio binario a los navegadores autenticados
+                    desconectados = []
+                    for client in list(browser_connections):
+                        try:
+                            await client.send_bytes(audio_data)
+                        except Exception:
+                            desconectados.append(client)
+                    for c in desconectados:
+                        browser_connections.discard(c)
+
+            elif "text" in message and message["text"] is not None:
+                try:
+                    data = json.loads(message["text"])
+                    if "recording" in data:
+                        is_recording = bool(data["recording"])
+                        estado_str = "TRANSMITIENDO" if is_recording else "EN ESPERA"
+                        print(f"\n\033[1;33m[ESP32] Estado de grabacion: {estado_str}\033[0m")
+                        await broadcast_status()
+                except Exception:
+                    pass
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"\n\033[31m[ESP32] Error en conexion: {e}\033[0m")
+    finally:
+        if esp_connection == websocket:
+            esp_connection = None
+            is_recording = False
+        print("\n\033[1;31m[ESP32] Dispositivo desconectado.\033[0m")
+        await broadcast_status()
+
+
+@app.websocket("/ws/client")
+async def websocket_client(websocket: WebSocket):
+    """
+    Endpoint para los navegadores de monitoreo. Requiere WEB_PASSWORD valida.
+    """
+    password = websocket.query_params.get("password", "")
+    if password != WEB_PASSWORD:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    browser_connections.add(websocket)
+
+    # Enviar estado inmediato al conectar
+    await websocket.send_text(json.dumps({
+        "type": "status",
+        "esp_connected": esp_connection is not None,
+        "recording": is_recording
+    }))
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        browser_connections.discard(websocket)
+
+
+# Montar archivos estaticos del Frontend
+if os.path.isdir(FRONT_DIR):
+    app.mount("/Front", StaticFiles(directory=FRONT_DIR, html=True), name="front")
+
+
+if __name__ == "__main__":
+    print("\033[1;34m" + "=" * 68 + "\033[0m")
+    print(f"\033[1;32mServidor Unificado Audio Analytics escuchando en 0.0.0.0:{PORT}\033[0m")
+    print(f"Frontend servido desde: \033[36m{FRONT_DIR}\033[0m")
+    print(f"Seguridad .env activa : \033[33mESP_TOKEN y WEB_PASSWORD cargados\033[0m")
+    print("\033[1;34m" + "=" * 68 + "\033[0m")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

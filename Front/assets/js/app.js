@@ -1,50 +1,43 @@
 /**
  * app.js
- * Controlador principal de la aplicacion de monitoreo de audio.
- * Integra AudioCore, AudioVisualizer y AudioTransmitter con la interfaz Spark Admin.
+ * Controlador principal del panel de monitoreo ESP32 + INMP441.
+ * Integra autenticacion (.env WEB_PASSWORD), recepcion WebSocket,
+ * visualizador de espectro/osciloscopio y reproduccion de audio en vivo.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Inicializacion de Componentes Base
-  const audioCore = new AudioCore();
+  const audioCore = new AudioCore({ sampleRate: 16000, fftSize: 512 });
   const canvasEl = document.getElementById('audioVisualizerCanvas');
   const visualizer = new AudioVisualizer(canvasEl, audioCore);
 
-  // Detectar URL inicial del servidor (soporte automatico para ngrok https o local)
-  const currentHost = window.location.host || 'localhost:8000';
-  const isHttps = window.location.protocol === 'https:';
-  const defaultHttpUrl = `${window.location.protocol}//${currentHost}/api/audio-stream`;
-  const defaultWsUrl = `${isHttps ? 'wss:' : 'ws:'}//${currentHost}/ws/audio`;
+  // Elementos de Autenticacion
+  const authOverlay = document.getElementById('authOverlay');
+  const authForm = document.getElementById('authForm');
+  const inputWebPassword = document.getElementById('inputWebPassword');
+  const authErrorMsg = document.getElementById('authErrorMsg');
+  const btnLogout = document.getElementById('btn-logout');
 
-  const transmitter = new AudioTransmitter(audioCore, {
-    protocol: 'fetch',
-    serverUrl: defaultHttpUrl,
-    rateMs: 100,
-    sendRaw: false,
-    onStatusChange: updateTransmitterStatus,
-    onPacketSent: recordSentPacket
-  });
-
-  // 2. Elementos del DOM
-  const btnToggleStream = document.getElementById('btnToggleStream');
-  const btnToggleStreamText = document.getElementById('btnToggleStreamText');
-  const btnToggleStreamIcon = document.getElementById('btnToggleStreamIcon');
-  const statusPill = document.getElementById('audioStatusPill');
-  const statusPillText = document.getElementById('audioStatusPillText');
-  const insecureAlert = document.getElementById('audioInsecureAlert');
+  // Indicadores de Estado ESP32 (Navbar y Card Lateral)
+  const navEspConnPill = document.getElementById('navEspConnPill');
+  const navEspConnText = document.getElementById('navEspConnText');
+  const navEspRecPill = document.getElementById('navEspRecPill');
+  const navEspRecText = document.getElementById('navEspRecText');
+  const cardEspConnBadge = document.getElementById('cardEspConnBadge');
+  const cardEspRecBadge = document.getElementById('cardEspRecBadge');
 
   // Metricas KPI
+  const kpiEspStatusDate = document.getElementById('kpiEspStatusDate');
+  const kpiStateText = document.getElementById('kpiStateText');
   const kpiRms = document.getElementById('kpiRms');
   const kpiDb = document.getElementById('kpiDb');
   const kpiPeakFreq = document.getElementById('kpiPeakFreq');
-  const kpiStateText = document.getElementById('kpiStateText');
   const vuMeterBar = document.getElementById('vuMeterBar');
 
-  // Configuracion
-  const inputServerUrl = document.getElementById('inputServerUrl');
-  const selectProtocol = document.getElementById('selectProtocol');
-  const selectSendRate = document.getElementById('selectSendRate');
-  const chkSendRaw = document.getElementById('chkSendRaw');
+  // Boton de Reproduccion de Audio
+  const btnTogglePlayback = document.getElementById('btnTogglePlayback');
+  const btnTogglePlaybackIcon = document.getElementById('btnTogglePlaybackIcon');
+  const btnTogglePlaybackText = document.getElementById('btnTogglePlaybackText');
 
   // Pestanas del Visualizador
   const btnTabBars = document.getElementById('btnTabBars');
@@ -55,146 +48,201 @@ document.addEventListener('DOMContentLoaded', () => {
   const tableLogsBody = document.getElementById('tableLogsBody');
   const packetsCountEl = document.getElementById('packetsCount');
   let packetsCount = 0;
+  let lastTableUpdate = 0;
+  let espState = { espConnected: false, recording: false };
 
-  // Establecer URL por defecto en el input
-  if (inputServerUrl) {
-    inputServerUrl.value = defaultHttpUrl;
+  // 2. Cliente WebSocket de Monitoreo
+  const monitorClient = new EspMonitorClient(audioCore, {
+    onEspStatusChange: handleEspStatusChange,
+    onPacketReceived: handlePacketReceived,
+    onAuthError: handleAuthError
+  });
+
+  // Iniciar visualizador y loop de UI
+  visualizer.start();
+  startUiLoop();
+
+  // 3. Flujo de Autenticacion con WEB_PASSWORD
+  const savedPassword = sessionStorage.getItem('web_monitor_password');
+  if (savedPassword) {
+    attemptLogin(savedPassword, true);
   }
 
-  // Comprobar soporte de getUserMedia
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    if (insecureAlert) insecureAlert.style.display = 'block';
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pass = inputWebPassword.value.trim();
+      if (!pass) return;
+      // Inicializar AudioContext aprovechando el gesto del usuario al enviar el formulario
+      audioCore.initAudioContext();
+      await attemptLogin(pass, false);
+    });
   }
 
-  // 3. Loop de Actualizacion de Metricas en UI (60 FPS)
-  let uiUpdateTimer = null;
+  async function attemptLogin(password, isAuto) {
+    if (authErrorMsg) authErrorMsg.style.display = 'none';
+    const isValid = await monitorClient.verifyPassword(password);
 
-  function startUiLoop() {
-    function loop() {
-      if (!audioCore.isRunning) return;
-
-      const snapshot = audioCore.getSnapshot();
-      if (snapshot) {
-        kpiRms.textContent = `${snapshot.volumePercent}%`;
-        kpiDb.textContent = `${snapshot.db} dB`;
-        kpiPeakFreq.textContent = snapshot.peakFrequencyHz > 0 ? `${snapshot.peakFrequencyHz} Hz` : '---';
-
-        if (vuMeterBar) {
-          vuMeterBar.style.width = `${snapshot.volumePercent}%`;
-        }
-
-        if (kpiStateText) {
-          kpiStateText.textContent = snapshot.volumePercent > 6 ? 'Audio detectado' : 'Silencio';
-        }
-      }
-
-      uiUpdateTimer = requestAnimationFrame(loop);
-    }
-    loop();
-  }
-
-  function stopUiLoop() {
-    if (uiUpdateTimer) {
-      cancelAnimationFrame(uiUpdateTimer);
-      uiUpdateTimer = null;
-    }
-    kpiRms.textContent = '0%';
-    kpiDb.textContent = '-∞ dB';
-    kpiPeakFreq.textContent = '0 Hz';
-    if (vuMeterBar) vuMeterBar.style.width = '0%';
-    if (kpiStateText) kpiStateText.textContent = 'Inactivo';
-  }
-
-  // 4. Iniciar y Detener Transmision
-  async function toggleStream() {
-    if (!audioCore.isRunning) {
-      try {
-        btnToggleStream.disabled = true;
-        updateStatusPill('connecting', 'Conectando...');
-
-        await audioCore.start();
-        visualizer.start();
-        transmitter.start();
-        startUiLoop();
-
-        btnToggleStream.classList.remove('btn-start');
-        btnToggleStream.classList.add('btn-stop');
-        btnToggleStreamIcon.className = 'bi bi-stop-circle-fill';
-        btnToggleStreamText.textContent = 'Detener Captura y Envio';
-
-        updateStatusPill('active', 'Transmitiendo');
-      } catch (err) {
-        console.error('Error al iniciar captura de audio:', err);
-        alert('No se pudo acceder al microfono: ' + (err.message || err.name));
-        updateStatusPill('error', 'Error Microfono');
-      } finally {
-        btnToggleStream.disabled = false;
-      }
+    if (isValid) {
+      sessionStorage.setItem('web_monitor_password', password);
+      if (authOverlay) authOverlay.classList.add('hidden');
+      monitorClient.connect(password);
     } else {
-      audioCore.stop();
-      visualizer.stop();
-      transmitter.stop();
-      stopUiLoop();
-
-      btnToggleStream.classList.remove('btn-stop');
-      btnToggleStream.classList.add('btn-start');
-      btnToggleStreamIcon.className = 'bi bi-play-circle-fill';
-      btnToggleStreamText.textContent = 'Iniciar Captura y Envio';
-
-      updateStatusPill('idle', 'Inactivo');
+      sessionStorage.removeItem('web_monitor_password');
+      if (authOverlay) authOverlay.classList.remove('hidden');
+      if (!isAuto && authErrorMsg) {
+        authErrorMsg.style.display = 'block';
+      }
     }
   }
 
-  if (btnToggleStream) {
-    btnToggleStream.addEventListener('click', toggleStream);
+  function handleAuthError() {
+    sessionStorage.removeItem('web_monitor_password');
+    if (authOverlay) authOverlay.classList.remove('hidden');
+    if (authErrorMsg) authErrorMsg.style.display = 'block';
   }
 
-  // 5. Control de Estado
-  function updateStatusPill(state, text) {
-    if (!statusPill || !statusPillText) return;
-    statusPill.className = 'audio-status-pill ' + (state === 'active' ? 'active' : state === 'error' ? 'error' : '');
-    statusPillText.textContent = text;
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      sessionStorage.removeItem('web_monitor_password');
+      monitorClient.disconnect();
+      audioCore.setPlaybackEnabled(false);
+      updatePlaybackButtonUI(false);
+      if (inputWebPassword) inputWebPassword.value = '';
+      if (authErrorMsg) authErrorMsg.style.display = 'none';
+      if (authOverlay) authOverlay.classList.remove('hidden');
+    });
   }
 
-  function updateTransmitterStatus(state, message) {
-    if (state === 'active') {
-      updateStatusPill('active', 'Transmitiendo');
-    } else if (state === 'error') {
-      updateStatusPill('error', message);
-    } else if (state === 'idle') {
-      updateStatusPill('idle', 'Detenido');
+  // 4. Actualizacion de Indicadores de Conexion y Grabacion del ESP32
+  function handleEspStatusChange(state) {
+    espState = state;
+
+    // Indicador de Conexion del ESP32
+    if (state.espConnected) {
+      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill connected me-2';
+      if (navEspConnText) navEspConnText.textContent = 'ESP32: Conectado';
+      if (cardEspConnBadge) {
+        cardEspConnBadge.className = 'badge bg-success-subtle text-success';
+        cardEspConnBadge.textContent = 'Conectado';
+      }
+      if (kpiEspStatusDate) kpiEspStatusDate.textContent = 'ESP32 En Linea';
+    } else {
+      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill error me-2';
+      if (navEspConnText) navEspConnText.textContent = 'ESP32: Desconectado';
+      if (cardEspConnBadge) {
+        cardEspConnBadge.className = 'badge bg-danger-subtle text-danger';
+        cardEspConnBadge.textContent = 'Desconectado';
+      }
+      if (kpiEspStatusDate) kpiEspStatusDate.textContent = 'ESP32 Desconectado';
+    }
+
+    // Indicador de Envio de Sonido (Boton fisico del ESP32)
+    if (state.espConnected && state.recording) {
+      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill active me-2';
+      if (navEspRecText) navEspRecText.textContent = 'Audio: Transmitiendo';
+      if (cardEspRecBadge) {
+        cardEspRecBadge.className = 'badge bg-success-subtle text-success';
+        cardEspRecBadge.textContent = 'Transmitiendo';
+      }
+      if (kpiStateText) kpiStateText.textContent = 'Recibiendo audio';
+    } else {
+      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill me-2';
+      if (navEspRecText) navEspRecText.textContent = 'Audio: Inactivo';
+      if (cardEspRecBadge) {
+        cardEspRecBadge.className = 'badge bg-secondary-subtle text-secondary';
+        cardEspRecBadge.textContent = 'Inactivo';
+      }
+      if (kpiStateText) {
+        kpiStateText.textContent = state.espConnected ? 'En espera (Pausa)' : 'Sin conexion';
+      }
     }
   }
 
-  // 6. Registro de paquetes en la tabla de logs (Fase 1)
-  function recordSentPacket(payload) {
+  // 5. Recepcion de Bloques de Audio desde el ESP32
+  function handlePacketReceived(snapshot) {
     packetsCount++;
     if (packetsCountEl) {
       packetsCountEl.textContent = packetsCount.toLocaleString();
     }
 
-    if (!tableLogsBody) return;
+    // Actualizar tabla de mediciones cada 200 ms para lectura fluida
+    const now = Date.now();
+    if (now - lastTableUpdate >= 200 && tableLogsBody) {
+      lastTableUpdate = now;
 
-    const row = document.createElement('tr');
-    const timeStr = new Date(payload.timestamp).toLocaleTimeString();
+      if (packetsCount === 1 || tableLogsBody.querySelector('td[colspan]')) {
+        tableLogsBody.innerHTML = '';
+      }
 
-    row.innerHTML = `
-      <td><code>${timeStr}</code></td>
-      <td><strong>${payload.db.toFixed(1)} dB</strong></td>
-      <td>${(payload.rms * 100).toFixed(1)}%</td>
-      <td>${payload.peakFrequencyHz > 0 ? payload.peakFrequencyHz + ' Hz' : '---'}</td>
-      <td><span class="badge bg-success-subtle text-success">OK</span></td>
-    `;
+      const row = document.createElement('tr');
+      const timeStr = new Date(snapshot.timestamp).toLocaleTimeString();
 
-    tableLogsBody.insertBefore(row, tableLogsBody.firstChild);
+      row.innerHTML = `
+        <td><code>${timeStr}</code></td>
+        <td><strong>${snapshot.db.toFixed(1)} dB</strong></td>
+        <td>${(snapshot.rms * 100).toFixed(1)}%</td>
+        <td>${snapshot.peakFrequencyHz > 0 ? snapshot.peakFrequencyHz + ' Hz' : '---'}</td>
+        <td><span class="badge bg-success-subtle text-success">Recibido</span></td>
+      `;
 
-    // Mantener maximo 10 filas visibles en el feed
-    while (tableLogsBody.children.length > 10) {
-      tableLogsBody.removeChild(tableLogsBody.lastChild);
+      tableLogsBody.insertBefore(row, tableLogsBody.firstChild);
+
+      while (tableLogsBody.children.length > 10) {
+        tableLogsBody.removeChild(tableLogsBody.lastChild);
+      }
     }
   }
 
-  // 7. Pestanas de Visualizacion
+  // 6. Loop de Actualizacion de Tarjetas KPI (60 FPS)
+  function startUiLoop() {
+    function loop() {
+      const snapshot = audioCore.getSnapshot();
+      if (snapshot && espState.espConnected && espState.recording) {
+        if (kpiRms) kpiRms.textContent = `${snapshot.volumePercent}%`;
+        if (kpiDb) kpiDb.textContent = `${snapshot.db} dB`;
+        if (kpiPeakFreq) {
+          kpiPeakFreq.textContent = snapshot.peakFrequencyHz > 0 ? `${snapshot.peakFrequencyHz} Hz` : '---';
+        }
+        if (vuMeterBar) {
+          vuMeterBar.style.width = `${snapshot.volumePercent}%`;
+        }
+      } else {
+        if (kpiRms) kpiRms.textContent = '0%';
+        if (kpiDb) kpiDb.textContent = '-∞ dB';
+        if (kpiPeakFreq) kpiPeakFreq.textContent = '0 Hz';
+        if (vuMeterBar) vuMeterBar.style.width = '0%';
+      }
+
+      requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  // 7. Boton de Reproduccion de Audio del ESP32
+  function updatePlaybackButtonUI(playing) {
+    if (!btnTogglePlayback) return;
+    if (playing) {
+      btnTogglePlayback.classList.remove('btn-start');
+      btnTogglePlayback.classList.add('btn-stop');
+      if (btnTogglePlaybackIcon) btnTogglePlaybackIcon.className = 'bi bi-volume-mute-fill';
+      if (btnTogglePlaybackText) btnTogglePlaybackText.textContent = 'Silenciar Reproduccion de Audio';
+    } else {
+      btnTogglePlayback.classList.remove('btn-stop');
+      btnTogglePlayback.classList.add('btn-start');
+      if (btnTogglePlaybackIcon) btnTogglePlaybackIcon.className = 'bi bi-volume-up-fill';
+      if (btnTogglePlaybackText) btnTogglePlaybackText.textContent = 'Activar Reproduccion de Audio';
+    }
+  }
+
+  if (btnTogglePlayback) {
+    btnTogglePlayback.addEventListener('click', () => {
+      const playing = audioCore.togglePlayback();
+      updatePlaybackButtonUI(playing);
+    });
+  }
+
+  // 8. Pestanas de Visualizacion (Espectro FFT / Osciloscopio)
   if (btnTabBars && btnTabWave) {
     btnTabBars.addEventListener('click', () => {
       visualizer.setMode('bars');
@@ -211,45 +259,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 8. Cambios de Configuracion en Caliente
-  if (selectProtocol && inputServerUrl) {
-    selectProtocol.addEventListener('change', () => {
-      const mode = selectProtocol.value;
-      if (mode === 'ws') {
-        inputServerUrl.value = defaultWsUrl;
-      } else {
-        inputServerUrl.value = defaultHttpUrl;
-      }
-      transmitter.setProtocol(mode);
-      transmitter.setServerUrl(inputServerUrl.value.trim());
-    });
-  }
-
-  if (inputServerUrl) {
-    inputServerUrl.addEventListener('change', () => {
-      transmitter.setServerUrl(inputServerUrl.value.trim());
-    });
-  }
-
-  if (selectSendRate) {
-    selectSendRate.addEventListener('change', () => {
-      transmitter.setRate(parseInt(selectSendRate.value, 10) || 100);
-    });
-  }
-
-  if (chkSendRaw) {
-    chkSendRaw.addEventListener('change', () => {
-      transmitter.setSendRaw(chkSendRaw.checked);
-    });
-  }
-
-  // 9. Integracion de Controles de Sidebar y Pantalla Completa (Spark Admin)
+  // 9. Controles de Sidebar y Pantalla Completa (Spark Admin)
   const sidebar = document.querySelector('.sidebar-wrapper');
   const toggleBtn = document.querySelector('.sidebar-toggle-btn');
   const desktopToggleBtn = document.querySelector('#desktop-sidebar-toggle');
   const fullscreenBtn = document.querySelector('#btn-fullscreen');
 
-  let overlay = document.createElement('div');
+  const overlay = document.createElement('div');
   overlay.className = 'sidebar-overlay';
   document.body.appendChild(overlay);
 
@@ -276,10 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fullscreenBtn.addEventListener('click', () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        if (document.exitFullscreen) document.exitFullscreen();
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
       }
     });
   }
 });
-

@@ -1,131 +1,222 @@
 /**
  * audio-core.js
- * Modulo encargado de la captura de audio nativa mediante Web Audio API.
- * Extrae metricas continuas de nivel (RMS, dB), frecuencia dominante y muestras PCM.
+ * Motor de recepcion, decodificacion, analisis espectral y reproduccion del
+ * flujo PCM de 16 bits (16 kHz) enviado por el ESP32 (INMP441).
+ * No utiliza microfono del navegador; opera exclusivamente como monitor.
  */
 
 class AudioCore {
   constructor(options = {}) {
+    this.sampleRate = options.sampleRate || 16000;
     this.fftSize = options.fftSize || 512;
     this.smoothingTimeConstant = options.smoothingTimeConstant || 0.8;
 
     this.audioCtx = null;
     this.analyser = null;
-    this.micStream = null;
-    this.isRunning = false;
+    this.gainNode = null;
+
+    this.isPlaybackEnabled = false;
+    this.nextStartTime = 0;
+    this.lastPacketTime = 0;
+
+    // Ultimo estado calculado a partir de los paquetes del ESP32
+    const bins = this.fftSize / 2;
+    this.latestSnapshot = {
+      timestamp: Date.now(),
+      sampleRate: this.sampleRate,
+      bufferLength: bins,
+      rms: 0,
+      db: -60.0,
+      volumePercent: 0,
+      peakFrequencyHz: 0,
+      freqData: new Uint8Array(bins),
+      timeByteData: new Uint8Array(bins).fill(128),
+      timeFloatData: new Float32Array(bins)
+    };
   }
 
   /**
-   * Solicita acceso al microfono del navegador y configura el grafo Web Audio.
+   * Inicializa el AudioContext tras interaccion del usuario (login o boton de audio).
    */
-  async start() {
-    if (this.isRunning) return;
+  initAudioContext() {
+    if (!this.audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      this.audioCtx = new AudioContextClass({ sampleRate: this.sampleRate });
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("API de captura no soportada en este contexto (se requiere HTTPS o localhost).");
+      this.analyser = this.audioCtx.createAnalyser();
+      this.analyser.fftSize = this.fftSize;
+      this.analyser.smoothingTimeConstant = this.smoothingTimeConstant;
+
+      this.gainNode = this.audioCtx.createGain();
+      this.gainNode.gain.value = this.isPlaybackEnabled ? 1.0 : 0.0;
+
+      this.analyser.connect(this.gainNode);
+      this.gainNode.connect(this.audioCtx.destination);
     }
-
-    // Configuracion sin filtros agresivos de telefonia para capturar audio fiel
-    const constraints = {
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
-    };
-
-    this.micStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    this.audioCtx = new AudioContextClass();
 
     if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
+      this.audioCtx.resume();
     }
-
-    this.analyser = this.audioCtx.createAnalyser();
-    this.analyser.fftSize = this.fftSize;
-    this.analyser.smoothingTimeConstant = this.smoothingTimeConstant;
-
-    const source = this.audioCtx.createMediaStreamSource(this.micStream);
-    source.connect(this.analyser);
-
-    this.isRunning = true;
-    return this.audioCtx;
   }
 
   /**
-   * Detiene el flujo de audio y libera los recursos del microfono.
+   * Activa o silencia la salida de altavoz del navegador para escuchar al ESP32.
    */
-  stop() {
-    this.isRunning = false;
-
-    if (this.micStream) {
-      this.micStream.getTracks().forEach(track => track.stop());
-      this.micStream = null;
+  setPlaybackEnabled(enabled) {
+    this.isPlaybackEnabled = Boolean(enabled);
+    this.initAudioContext();
+    if (this.gainNode && this.audioCtx) {
+      this.gainNode.gain.setValueAtTime(
+        this.isPlaybackEnabled ? 1.0 : 0.0,
+        this.audioCtx.currentTime
+      );
     }
+    return this.isPlaybackEnabled;
+  }
 
-    if (this.audioCtx && this.audioCtx.state !== 'closed') {
-      this.audioCtx.close();
-      this.audioCtx = null;
-    }
-
-    this.analyser = null;
+  togglePlayback() {
+    return this.setPlaybackEnabled(!this.isPlaybackEnabled);
   }
 
   /**
-   * Obtiene los arreglos de datos actuales en frecuencia y tiempo.
+   * Recibe un ArrayBuffer con muestras PCM Int16 (16 kHz) provenientes del ESP32,
+   * calcula metricas en tiempo real y encola el audio en el Jitter Buffer.
    */
-  getSnapshot() {
-    if (!this.analyser) {
-      return null;
-    }
+  feedPcm16(arrayBuffer) {
+    if (!arrayBuffer || arrayBuffer.byteLength < 2) return null;
 
-    const bufferLen = this.analyser.frequencyBinCount;
-    const freqData = new Uint8Array(bufferLen);
-    const timeByteData = new Uint8Array(bufferLen);
-    const timeFloatData = new Float32Array(bufferLen);
+    const int16Data = new Int16Array(arrayBuffer);
+    const numSamples = int16Data.length;
+    const float32Data = new Float32Array(numSamples);
 
-    this.analyser.getByteFrequencyData(freqData);
-    this.analyser.getByteTimeDomainData(timeByteData);
-    this.analyser.getFloatTimeDomainData(timeFloatData);
-
-    // Calculo de RMS e identificacion de frecuencia dominante (pico)
     let sumSquares = 0;
-    let peakVal = 0;
-    let peakIndex = 0;
+    let zeroCrossings = 0;
+    let prevVal = int16Data[0];
 
-    for (let i = 0; i < bufferLen; i++) {
-      const val = timeFloatData[i];
-      sumSquares += val * val;
+    for (let i = 0; i < numSamples; i++) {
+      const s = int16Data[i];
+      const norm = s / 32768.0;
+      float32Data[i] = norm;
+      sumSquares += norm * norm;
 
-      if (freqData[i] > peakVal) {
-        peakVal = freqData[i];
-        peakIndex = i;
+      if ((prevVal < 0 && s >= 0) || (prevVal >= 0 && s < 0)) {
+        zeroCrossings++;
+      }
+      prevVal = s;
+    }
+
+    const rms = Math.sqrt(sumSquares / numSamples);
+    const volumePercent = Math.min(100, Math.round(rms * 190));
+    const db = rms > 0.0001 ? Math.max(-60.0, +(20 * Math.log10(rms)).toFixed(2)) : -60.0;
+
+    // Frecuencia estimada por cruce por cero como base
+    const durationSec = numSamples / this.sampleRate;
+    let peakHz = (rms > 0.008 && durationSec > 0)
+      ? Math.round((zeroCrossings / 2) / durationSec)
+      : 0;
+
+    // Si el AudioContext esta corriendo, encolar para reproduccion y FFT por hardware
+    if (this.audioCtx && this.audioCtx.state === 'running') {
+      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, this.sampleRate);
+      audioBuffer.getChannelData(0).set(float32Data);
+
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.analyser);
+
+      const currentTime = this.audioCtx.currentTime;
+      // Jitter buffer de 150 ms para absorber variaciones de red sin cortes
+      if (this.nextStartTime < currentTime) {
+        this.nextStartTime = currentTime + 0.15;
+      }
+      source.start(this.nextStartTime);
+      this.nextStartTime += audioBuffer.duration;
+    }
+
+    // Actualizar arreglos de visualizacion
+    const bins = this.fftSize / 2;
+    const timeByteData = new Uint8Array(bins);
+    const freqData = new Uint8Array(bins);
+
+    if (this.analyser && this.audioCtx && this.audioCtx.state === 'running') {
+      this.analyser.getByteFrequencyData(freqData);
+      this.analyser.getByteTimeDomainData(timeByteData);
+
+      // Si el AnalyserNode tiene pico claro, usar su frecuencia dominante exacta
+      let maxBinVal = 0;
+      let maxBinIdx = 0;
+      for (let i = 1; i < bins; i++) {
+        if (freqData[i] > maxBinVal) {
+          maxBinVal = freqData[i];
+          maxBinIdx = i;
+        }
+      }
+      if (maxBinVal > 20) {
+        const nyquist = this.sampleRate / 2;
+        peakHz = Math.round((maxBinIdx * nyquist) / bins);
+      }
+    } else {
+      // Fallback por software cuando el AudioContext aun no ha sido activado
+      for (let i = 0; i < bins; i++) {
+        const sampleIdx = Math.min(numSamples - 1, Math.floor((i * numSamples) / bins));
+        timeByteData[i] = Math.max(0, Math.min(255, Math.round((float32Data[sampleIdx] + 1.0) * 127.5)));
+      }
+      // Aproximacion de espectro para visualizacion inmediata sin requerir clic
+      if (peakHz > 0) {
+        const nyquist = this.sampleRate / 2;
+        const centerBin = Math.min(bins - 1, Math.max(0, Math.round((peakHz / nyquist) * bins)));
+        const mag = Math.min(255, Math.round(volumePercent * 2.5));
+        for (let i = 0; i < bins; i++) {
+          const dist = Math.abs(i - centerBin);
+          freqData[i] = Math.max(0, Math.round(mag * Math.exp(-(dist * dist) / 18)));
+        }
       }
     }
 
-    const rms = Math.sqrt(sumSquares / bufferLen);
-    const volumePercent = Math.min(100, Math.round(rms * 190));
-    const db = rms > 0.0001 ? +(20 * Math.log10(rms)).toFixed(2) : -60.0;
-
-    const nyquist = (this.audioCtx ? this.audioCtx.sampleRate : 44100) / 2;
-    const peakHz = Math.round((peakIndex * nyquist) / bufferLen);
-
-    return {
-      timestamp: Date.now(),
-      sampleRate: this.audioCtx ? this.audioCtx.sampleRate : 44100,
-      bufferLength: bufferLen,
+    this.lastPacketTime = Date.now();
+    this.latestSnapshot = {
+      timestamp: this.lastPacketTime,
+      sampleRate: this.sampleRate,
+      bufferLength: bins,
       rms: +rms.toFixed(4),
       db: db,
       volumePercent: volumePercent,
-      peakFrequencyHz: peakVal > 20 ? peakHz : 0,
+      peakFrequencyHz: peakHz,
       freqData: freqData,
       timeByteData: timeByteData,
-      timeFloatData: timeFloatData
+      timeFloatData: float32Data.subarray(0, bins)
     };
+
+    return this.latestSnapshot;
+  }
+
+  /**
+   * Devuelve el estado actual para el renderizador de Canvas a 60 FPS.
+   * Si el ESP32 deja de transmitir por mas de 400 ms, decae suavemente a silencio.
+   */
+  getSnapshot() {
+    const elapsed = Date.now() - this.lastPacketTime;
+
+    if (elapsed > 400) {
+      const bins = this.fftSize / 2;
+      for (let i = 0; i < bins; i++) {
+        this.latestSnapshot.freqData[i] = Math.floor(this.latestSnapshot.freqData[i] * 0.85);
+        this.latestSnapshot.timeByteData[i] = 128;
+      }
+      this.latestSnapshot.rms = 0;
+      this.latestSnapshot.db = -60.0;
+      this.latestSnapshot.volumePercent = 0;
+      this.latestSnapshot.peakFrequencyHz = 0;
+      return this.latestSnapshot;
+    }
+
+    if (this.analyser && this.audioCtx && this.audioCtx.state === 'running') {
+      this.analyser.getByteFrequencyData(this.latestSnapshot.freqData);
+      this.analyser.getByteTimeDomainData(this.latestSnapshot.timeByteData);
+    }
+
+    return this.latestSnapshot;
   }
 }
 
 window.AudioCore = AudioCore;
-

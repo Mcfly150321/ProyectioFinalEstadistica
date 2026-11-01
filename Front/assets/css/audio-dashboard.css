@@ -107,6 +107,12 @@
   border-color: rgba(180, 241, 5, 0.35);
 }
 
+.audio-status-pill.connected {
+  background-color: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
 .audio-status-pill.error {
   background-color: rgba(239, 68, 68, 0.12);
   color: #f87171;
@@ -120,7 +126,8 @@
   background-color: currentColor;
 }
 
-.audio-status-pill.active .status-indicator-dot {
+.audio-status-pill.active .status-indicator-dot,
+.audio-status-pill.connected .status-indicator-dot {
   animation: pulse-dot 1.2s infinite alternate;
 }
 
@@ -129,7 +136,26 @@
   to { opacity: 1; transform: scale(1.25); }
 }
 
-/* Boton de Accion Principal */
+/* Filas de estado del dispositivo en el panel lateral */
+.esp-status-box {
+  background-color: #0b111a;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.esp-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.esp-status-row + .esp-status-row {
+  border-top: 1px solid rgba(51, 65, 85, 0.45);
+}
+
+/* Boton de Reproduccion de Audio */
 .btn-audio-stream {
   padding: 12px 20px;
   font-weight: 700;
@@ -171,15 +197,27 @@
   background-color: rgba(180, 241, 5, 0.05);
 }
 
-/* Alertas de Contexto Inseguro */
-.audio-insecure-box {
-  display: none;
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  border-radius: 8px;
-  padding: 12px 16px;
-  color: #fca5a5;
-  font-size: 0.84rem;
-  line-height: 1.45;
+/* Overlay de Autenticacion (WEB_PASSWORD) estilo Spark Admin */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(7, 11, 18, 0.88);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
+.auth-overlay.hidden {
+  display: none !important;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+}
