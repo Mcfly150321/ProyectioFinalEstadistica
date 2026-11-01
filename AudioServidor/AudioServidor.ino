@@ -6,9 +6,11 @@
 const char* ssid = "FAM OROZCO";
 const char* password = "Alfaluan#34";
 
-// --- SERVIDOR ORACLE CLOUD ---
-const char* websockets_server_host = "157.137.185.15";
-const uint16_t websockets_server_port = 5000;
+// --- SERVIDOR NGROK ---
+// IMPORTANTE: En el servidor lanzar ngrok con:
+// ngrok http 5000 --domain luxury-roster-uncouth.ngrok-free.dev --scheme=http,https
+const char* websockets_server_host = "luxury-roster-uncouth.ngrok-free.dev";
+const uint16_t websockets_server_port = 80; // Puerto 80 (WS sin SSL) habilitado con --scheme=http,https
 
 // --- TOKEN DE AUTENTICACION DEL ESP32 (debe coincidir con ESP_TOKEN en .env) ---
 const char* esp_token = "EstadisticaProyecto123*esp32_123";
@@ -33,11 +35,32 @@ int16_t pcmBuffer[CHUNK_SAMPLES];
 bool escuchando = false;
 bool estadoBotonAnterior = HIGH;
 
-// Variables para el filtro DC-Blocker (elimina el offset continuo del INMP441)
+// Variables para el filtro DC-Blocker
 int32_t prevInput = 0;
 int32_t prevOutput = 0;
 
 WebSocketsClient webSocket;
+
+void despertarRedARP() {
+    IPAddress gateway = WiFi.gatewayIP();
+    Serial.print("Despertando ruta ARP con el Gateway (");
+    Serial.print(gateway);
+    Serial.println(")...");
+
+    WiFiClient arpClient;
+    arpClient.connect(gateway, 80);
+    arpClient.stop();
+
+    IPAddress serverIP;
+    Serial.print("Resolviendo DNS para ");
+    Serial.print(websockets_server_host);
+    if (WiFi.hostByName(websockets_server_host, serverIP)) {
+        Serial.print(" -> IP resuelta: ");
+        Serial.println(serverIP);
+    } else {
+        Serial.println(" -> [ERROR] No se pudo resolver el DNS!");
+    }
+}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     switch(type) {
@@ -46,13 +69,15 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             digitalWrite(LED_PIN, LOW);
             break;
         case WStype_CONNECTED:
-            Serial.println("[WSc] Conectado y autenticado en el servidor!");
-            // Sincronizar estado actual de grabacion al reconectar
+            Serial.printf("[WSc] Conectado exitosamente a: %s\n", payload ? (char*)payload : "/ws/esp");
             {
                 String jsonString = "{\"recording\":" + String(escuchando ? "true" : "false") + "}";
                 webSocket.sendTXT(jsonString);
                 digitalWrite(LED_PIN, escuchando ? HIGH : LOW);
             }
+            break;
+        case WStype_ERROR:
+            Serial.printf("[WSc] Error en WebSocket: %s\n", payload ? (char*)payload : "desconocido");
             break;
         default:
             break;
@@ -64,15 +89,11 @@ void configurarI2S() {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
         .sample_rate = SAMPLE_RATE,
         .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-        // Pin L/R del INMP441 conectado a GND -> Canal Izquierdo
         .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
-        // Estandar I2S Philips para el INMP441 (1 bit de delay tras WS)
         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        // 8 buffers DMA de 512 muestras = 256 ms de colchon en hardware
         .dma_buf_count = 8,
         .dma_buf_len = 512,
-        // Reloj de audio de alta precision (APLL)
         .use_apll = true,
         .tx_desc_auto_clear = false,
         .fixed_mclk = 0
@@ -97,27 +118,30 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-    // Desactivar ahorro de energia del Wi-Fi para evitar latencia y cortes en el stream
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(false);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
     WiFi.begin(ssid, password);
+
     Serial.print("Conectando a Wi-Fi");
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
     }
+    WiFi.setSleep(false);
+
     Serial.println("\nWi-Fi conectado. IP local: " + WiFi.localIP().toString());
 
+    despertarRedARP();
     configurarI2S();
 
-    // Construir ruta con token y cabecera de autenticacion
     String wsPath = "/ws/esp?token=" + String(esp_token);
-    String extraHeader = "X-ESP-Token: " + String(esp_token);
+    String extraHeader = "X-ESP-Token: " + String(esp_token) + "\r\nngrok-skip-browser-warning: true";
 
     webSocket.begin(websockets_server_host, websockets_server_port, wsPath.c_str());
     webSocket.setExtraHeaders(extraHeader.c_str());
     webSocket.onEvent(webSocketEvent);
     webSocket.setReconnectInterval(3000);
+    webSocket.enableHeartbeat(15000, 3000, 2);
 }
 
 void loop() {
@@ -129,7 +153,6 @@ void loop() {
     if (estadoBotonAnterior == HIGH && estadoBotonActual == LOW) {
         escuchando = !escuchando;
 
-        // Reiniciar el filtro DC al iniciar nueva grabacion
         prevInput = 0;
         prevOutput = 0;
         i2s_zero_dma_buffer(I2S_PORT);
@@ -138,7 +161,7 @@ void loop() {
         webSocket.sendTXT(jsonString);
 
         digitalWrite(LED_PIN, escuchando ? HIGH : LOW);
-        delay(200); // Antirrebote
+        delay(200);
     }
     estadoBotonAnterior = estadoBotonActual;
 
@@ -151,25 +174,21 @@ void loop() {
             int muestras = bytesLeidos / sizeof(int32_t);
 
             for (int i = 0; i < muestras; i++) {
-                // El INMP441 entrega 24 bits con signo alineados en los bits [31:8].
                 int32_t x = rawBuffer[i] >> 8;
 
-                // Filtro pasa-altos DC-Blocker: y[n] = x[n] - x[n-1] + 0.996 * y[n-1]
+                // Filtro pasa-altos DC-Blocker
                 int32_t y = x - prevInput + ((prevOutput * 255) >> 8);
                 prevInput = x;
                 prevOutput = y;
 
-                // Ajustar de 24 bits a 16 bits con ganancia limpia
                 int32_t sample16 = y >> 6;
 
-                // Limitar (clipping)
                 if (sample16 > 32767) sample16 = 32767;
                 if (sample16 < -32768) sample16 = -32768;
 
                 pcmBuffer[i] = (int16_t)sample16;
             }
 
-            // Enviar paquete de audio binario (2048 bytes = 64 ms)
             webSocket.sendBIN((uint8_t*)pcmBuffer, muestras * sizeof(int16_t));
         }
     }

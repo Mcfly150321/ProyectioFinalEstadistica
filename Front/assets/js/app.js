@@ -2,7 +2,7 @@
  * app.js
  * Controlador principal del panel de monitoreo ESP32 + INMP441.
  * Integra autenticacion (.env WEB_PASSWORD), recepcion WebSocket,
- * visualizador de espectro/osciloscopio y reproduccion de audio en vivo.
+ * visualizador de espectro/osciloscopio, ocultamiento de sidebar y reproduccion en vivo.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -73,8 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const pass = inputWebPassword.value.trim();
       if (!pass) return;
-      // Inicializar AudioContext aprovechando el gesto del usuario al enviar el formulario
-      audioCore.initAudioContext();
+      // Inicializar y activar reproduccion aprovechando el gesto del usuario al desbloquear
+      const playing = audioCore.setPlaybackEnabled(true);
+      updatePlaybackButtonUI(playing);
       await attemptLogin(pass, false);
     });
   }
@@ -86,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isValid) {
       sessionStorage.setItem('web_monitor_password', password);
       if (authOverlay) authOverlay.classList.add('hidden');
+      visualizer.handleResize();
       monitorClient.connect(password);
     } else {
       sessionStorage.removeItem('web_monitor_password');
@@ -118,9 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleEspStatusChange(state) {
     espState = state;
 
-    // Indicador de Conexion del ESP32
     if (state.espConnected) {
-      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill connected me-2';
+      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill connected me-1';
       if (navEspConnText) navEspConnText.textContent = 'ESP32: Conectado';
       if (cardEspConnBadge) {
         cardEspConnBadge.className = 'badge bg-success-subtle text-success';
@@ -128,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (kpiEspStatusDate) kpiEspStatusDate.textContent = 'ESP32 En Linea';
     } else {
-      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill error me-2';
+      if (navEspConnPill) navEspConnPill.className = 'audio-status-pill error me-1';
       if (navEspConnText) navEspConnText.textContent = 'ESP32: Desconectado';
       if (cardEspConnBadge) {
         cardEspConnBadge.className = 'badge bg-danger-subtle text-danger';
@@ -137,9 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (kpiEspStatusDate) kpiEspStatusDate.textContent = 'ESP32 Desconectado';
     }
 
-    // Indicador de Envio de Sonido (Boton fisico del ESP32)
     if (state.espConnected && state.recording) {
-      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill active me-2';
+      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill active me-1';
       if (navEspRecText) navEspRecText.textContent = 'Audio: Transmitiendo';
       if (cardEspRecBadge) {
         cardEspRecBadge.className = 'badge bg-success-subtle text-success';
@@ -147,14 +147,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (kpiStateText) kpiStateText.textContent = 'Recibiendo audio';
     } else {
-      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill me-2';
+      if (navEspRecPill) navEspRecPill.className = 'audio-status-pill me-1';
       if (navEspRecText) navEspRecText.textContent = 'Audio: Inactivo';
       if (cardEspRecBadge) {
         cardEspRecBadge.className = 'badge bg-secondary-subtle text-secondary';
         cardEspRecBadge.textContent = 'Inactivo';
       }
       if (kpiStateText) {
-        kpiStateText.textContent = state.espConnected ? 'En espera (Pausa)' : 'Sin conexion';
+        kpiStateText.textContent = state.espConnected ? 'En espera (Pausa)' : 'En espera de senal';
       }
     }
   }
@@ -166,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
       packetsCountEl.textContent = packetsCount.toLocaleString();
     }
 
-    // Actualizar tabla de mediciones cada 200 ms para lectura fluida
     const now = Date.now();
     if (now - lastTableUpdate >= 200 && tableLogsBody) {
       lastTableUpdate = now;
@@ -181,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
       row.innerHTML = `
         <td><code>${timeStr}</code></td>
         <td><strong>${snapshot.db.toFixed(1)} dB</strong></td>
-        <td>${(snapshot.rms * 100).toFixed(1)}%</td>
+        <td>${(snapshot.rms * 100).toFixed(2)}%</td>
         <td>${snapshot.peakFrequencyHz > 0 ? snapshot.peakFrequencyHz + ' Hz' : '---'}</td>
         <td><span class="badge bg-success-subtle text-success">Recibido</span></td>
       `;
@@ -200,16 +199,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const snapshot = audioCore.getSnapshot();
       if (snapshot && espState.espConnected && espState.recording) {
         if (kpiRms) kpiRms.textContent = `${snapshot.volumePercent}%`;
-        if (kpiDb) kpiDb.textContent = `${snapshot.db} dB`;
+        if (kpiDb) kpiDb.textContent = `${snapshot.db.toFixed(1)} dB`;
         if (kpiPeakFreq) {
-          kpiPeakFreq.textContent = snapshot.peakFrequencyHz > 0 ? `${snapshot.peakFrequencyHz} Hz` : '---';
+          kpiPeakFreq.textContent = snapshot.peakFrequencyHz > 0 ? `${snapshot.peakFrequencyHz} Hz` : '0 Hz';
         }
         if (vuMeterBar) {
           vuMeterBar.style.width = `${snapshot.volumePercent}%`;
         }
       } else {
         if (kpiRms) kpiRms.textContent = '0%';
-        if (kpiDb) kpiDb.textContent = '-∞ dB';
+        if (kpiDb) kpiDb.textContent = '-60.0 dB';
         if (kpiPeakFreq) kpiPeakFreq.textContent = '0 Hz';
         if (vuMeterBar) vuMeterBar.style.width = '0%';
       }
@@ -259,34 +258,58 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 9. Controles de Sidebar y Pantalla Completa (Spark Admin)
+  // 9. Controles para Ocultar / Mostrar la Barra Lateral y Pantalla Completa
   const sidebar = document.querySelector('.sidebar-wrapper');
-  const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+  const toggleBtn = document.querySelector('#sidebar-toggle');
   const desktopToggleBtn = document.querySelector('#desktop-sidebar-toggle');
+  const sidebarCloseBtn = document.querySelector('#sidebar-close-btn');
   const fullscreenBtn = document.querySelector('#btn-fullscreen');
 
   const overlay = document.createElement('div');
   overlay.className = 'sidebar-overlay';
   document.body.appendChild(overlay);
 
-  if (toggleBtn && sidebar) {
-    toggleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sidebar.classList.toggle('show');
-      overlay.classList.toggle('show', sidebar.classList.contains('show'));
-    });
+  function resizeCanvasAfterTransition() {
+    setTimeout(() => visualizer.handleResize(), 50);
+    setTimeout(() => visualizer.handleResize(), 320);
+  }
 
-    overlay.addEventListener('click', () => {
-      sidebar.classList.remove('show');
-      overlay.classList.remove('show');
-    });
+  function toggleSidebarVisibility(e) {
+    if (e) e.stopPropagation();
+    if (window.innerWidth <= 1200) {
+      if (sidebar) {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show', sidebar.classList.contains('show'));
+      }
+    } else {
+      document.body.classList.toggle('sidebar-hidden');
+    }
+    resizeCanvasAfterTransition();
   }
 
   if (desktopToggleBtn) {
-    desktopToggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('sidebar-minimized');
+    desktopToggleBtn.addEventListener('click', toggleSidebarVisibility);
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleSidebarVisibility);
+  }
+
+  if (sidebarCloseBtn) {
+    sidebarCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (sidebar) sidebar.classList.remove('show');
+      overlay.classList.remove('show');
+      document.body.classList.add('sidebar-hidden');
+      resizeCanvasAfterTransition();
     });
   }
+
+  overlay.addEventListener('click', () => {
+    if (sidebar) sidebar.classList.remove('show');
+    overlay.classList.remove('show');
+    resizeCanvasAfterTransition();
+  });
 
   if (fullscreenBtn) {
     fullscreenBtn.addEventListener('click', () => {

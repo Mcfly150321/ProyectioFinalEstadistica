@@ -16,55 +16,24 @@
   <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.min.css">
 
   <!-- Estilo Base Spark Admin y Estilos de Audio -->
-  <link rel="stylesheet" href="assets/css/main.css">
-  <link rel="stylesheet" href="assets/css/audio-dashboard.css">
+  <link rel="stylesheet" href="assets/css/main.css?v=3">
+  <link rel="stylesheet" href="assets/css/audio-dashboard.css?v=3">
 </head>
 
 <body>
 
   <!-- ==========================================
-       START: Overlay de Autenticacion (.env WEB_PASSWORD)
-       ========================================== -->
-  <div id="authOverlay" class="auth-overlay">
-    <div class="card auth-card">
-      <div class="card-header d-flex align-items-center gap-2">
-        <i class="bi bi-shield-lock text-lime fs-5"></i>
-        <h5 class="card-title mb-0">Acceso al Monitor de Audio</h5>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small mb-3">
-          Ingresa la clave de acceso configurada en el servidor para visualizar y escuchar el flujo del ESP32 en tiempo real.
-        </p>
-        <form id="authForm">
-          <div class="mb-3">
-            <label for="inputWebPassword" class="form-label small fw-bold text-muted">Clave de Monitoreo:</label>
-            <input type="password" id="inputWebPassword"
-              class="form-control bg-dark text-light border-secondary"
-              placeholder="Ingresa WEB_PASSWORD" required autocomplete="current-password">
-            <div id="authErrorMsg" class="text-danger small mt-2" style="display: none;">
-              <i class="bi bi-exclamation-circle me-1"></i> Clave incorrecta. Intenta de nuevo.
-            </div>
-          </div>
-          <button type="submit" id="btnAuthSubmit" class="btn-audio-stream btn-start w-100">
-            <i class="bi bi-unlock-fill"></i>
-            <span>Desbloquear Panel de Monitoreo</span>
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-  <!-- ==========================================
-       END: Overlay de Autenticacion
-       ========================================== -->
-
-
-  <!-- ==========================================
        START: Sidebar Component
        ========================================== -->
-  <div class="sidebar-wrapper">
-    <div class="sidebar-brand">
-      <i class="bi bi-soundwave text-lime"></i>
-      <span>Audio Analytics</span>
+  <div class="sidebar-wrapper" id="sidebarWrapper">
+    <div class="sidebar-header-row">
+      <div class="sidebar-brand">
+        <i class="bi bi-soundwave text-lime"></i>
+        <span>Audio Analytics</span>
+      </div>
+      <button type="button" class="btn-sidebar-close" id="sidebar-close-btn" title="Ocultar barra lateral" aria-label="Ocultar barra lateral">
+        <i class="bi bi-chevron-left"></i>
+      </button>
     </div>
 
     <div class="sidebar-menu-wrapper">
@@ -116,9 +85,9 @@
     <!-- Top Navbar -->
     <header class="navbar-custom">
       <div class="navbar-left">
-        <button class="btn-desktop-toggle d-none d-xl-flex align-items-center justify-content-center me-3"
-          id="desktop-sidebar-toggle" aria-label="Minimizar Sidebar">
-          <i class="bi bi-chevron-bar-left"></i>
+        <button class="btn-desktop-toggle d-flex align-items-center justify-content-center me-2"
+          id="desktop-sidebar-toggle" title="Ocultar / Mostrar Barra Lateral" aria-label="Ocultar o Mostrar Barra Lateral">
+          <i class="bi bi-layout-sidebar-inset"></i>
         </button>
         <button class="sidebar-toggle-btn me-2" id="sidebar-toggle" aria-label="Toggle Navegacion">
           <i class="bi bi-list"></i>
@@ -128,28 +97,64 @@
 
       <div class="navbar-actions">
         <!-- Indicador de Conexion del ESP32 -->
-        <div id="navEspConnPill" class="audio-status-pill error me-2" title="Estado de conexion del ESP32">
+        <div id="navEspConnPill" class="audio-status-pill error me-1" title="Estado de conexion del ESP32">
           <span class="status-indicator-dot"></span>
           <span id="navEspConnText">ESP32: Desconectado</span>
         </div>
 
         <!-- Indicador de Transmision de Sonido del ESP32 -->
-        <div id="navEspRecPill" class="audio-status-pill me-2" title="Estado de envio de audio del ESP32">
+        <div id="navEspRecPill" class="audio-status-pill me-1" title="Estado de envio de audio del ESP32">
           <span class="status-indicator-dot"></span>
           <span id="navEspRecText">Audio: Inactivo</span>
         </div>
 
         <!-- Boton bloquear / cambiar clave -->
-        <button class="navbar-action-btn me-1" aria-label="Cerrar Sesion" id="btn-logout" title="Bloquear panel">
+        <button class="navbar-action-btn me-1" aria-label="Cerrar Sesion" id="btn-logout" title="Cambiar clave / Bloquear">
           <i class="bi bi-lock"></i>
         </button>
 
         <!-- Pantalla Completa -->
-        <button class="navbar-action-btn me-1" aria-label="Toggle Fullscreen" id="btn-fullscreen" title="Pantalla completa">
+        <button class="navbar-action-btn" aria-label="Toggle Fullscreen" id="btn-fullscreen" title="Pantalla completa">
           <i class="bi bi-arrows-fullscreen"></i>
         </button>
       </div>
     </header>
+
+    <!-- ==========================================
+         START: Tarjeta de Autenticacion (.env WEB_PASSWORD)
+         Ajustada al ancho disponible del canvas principal
+         ========================================== -->
+    <div id="authOverlay" class="auth-overlay">
+      <div class="card auth-card mb-0">
+        <div class="card-header d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-shield-lock text-success fs-5"></i>
+          <h5 class="card-title mb-0">Acceso al Monitor de Audio</h5>
+        </div>
+        <div class="card-body p-0">
+          <p class="text-muted small mb-3">
+            Ingresa la clave configurada en el servidor (<code>WEB_PASSWORD</code>) para recibir las graficas y el audio del ESP32 en tiempo real.
+          </p>
+          <form id="authForm">
+            <div class="mb-3">
+              <label for="inputWebPassword" class="form-label small fw-bold">Clave de Monitoreo:</label>
+              <input type="password" id="inputWebPassword"
+                class="form-control"
+                placeholder="Ingresa WEB_PASSWORD" required autocomplete="current-password">
+              <div id="authErrorMsg" class="text-danger small mt-2" style="display: none;">
+                <i class="bi bi-exclamation-circle me-1"></i> Clave incorrecta. Intenta de nuevo.
+              </div>
+            </div>
+            <button type="submit" id="btnAuthSubmit" class="btn-audio-stream btn-start w-100">
+              <i class="bi bi-unlock-fill"></i>
+              <span>Conectar y Desbloquear Monitor</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <!-- ==========================================
+         END: Tarjeta de Autenticacion
+         ========================================== -->
 
     <!-- Header de la Pagina -->
     <div class="page-header">
@@ -170,7 +175,7 @@
             <div class="alert-green-text" id="kpiStateText">En espera de senal</div>
           </div>
           <div class="mt-3 z-index-2">
-            <span class="small text-dark font-monospace">PCM 16-bit / 16.0 kHz</span>
+            <span class="small text-white-50 font-monospace">PCM 16-bit / 16.0 kHz</span>
           </div>
 
           <!-- Forma geometrica Spark Admin -->
@@ -214,7 +219,7 @@
               <span class="stat-label">Nivel de Entrada</span>
               <i class="bi bi-volume-up text-warning"></i>
             </div>
-            <div class="stat-value" id="kpiDb">-∞ dB</div>
+            <div class="stat-value" id="kpiDb">-60.0 dB</div>
             <div class="trend-badge trend-up">
               <i class="bi bi-graph-up-arrow"></i>
               <span>Rango relativo</span>
@@ -257,7 +262,7 @@
 
         <!-- Card: Espectro de Audio en Canvas -->
         <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
               <h5 class="card-title mb-0">Espectro y Osciloscopio en Tiempo Real</h5>
               <span class="text-muted small">Senal recibida desde el microfono digital INMP441 (60 FPS)</span>
@@ -285,12 +290,12 @@
 
         <!-- Card: Tabla de Mediciones Recientes (Fase 1) -->
         <div class="card mb-4" id="seccion-tabla">
-          <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
               <h5 class="card-title mb-0">Data Monitoreada del ESP32 (Fase 1 - PostgreSQL)</h5>
               <span class="text-muted small">Ultimos bloques de audio recibidos desde <code>/ws/esp</code></span>
             </div>
-            <span class="badge bg-secondary-subtle text-light font-monospace">
+            <span class="badge bg-secondary-subtle text-dark font-monospace">
               Bloques recibidos: <span id="packetsCount">0</span>
             </span>
           </div>
@@ -330,7 +335,7 @@
             <h5 class="card-title mb-0">Monitoreo y Reproduccion</h5>
           </div>
 
-          <div class="card-body">
+          <div class="card-body p-0">
             <!-- Indicadores de Estado del Hardware ESP32 -->
             <div class="esp-status-box mb-4">
               <div class="esp-status-row">
@@ -364,12 +369,12 @@
             <h5 class="card-title mb-0">Etapas del Proyecto</h5>
           </div>
 
-          <div class="card-body">
+          <div class="card-body p-0">
             <div class="timeline-widget">
               <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2 mb-1">
                   <span class="badge bg-success-subtle text-success">Fase 1</span>
-                  <strong class="small text-light">Adquisicion ESP32 y Persistencia</strong>
+                  <strong class="small text-dark">Adquisicion ESP32 y Persistencia</strong>
                 </div>
                 <p class="small text-muted mb-0">Captura digital I2S con INMP441 en ESP32, recepcion WebSocket autenticada y registro en PostgreSQL.</p>
               </div>
@@ -377,7 +382,7 @@
               <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
                 <div class="d-flex align-items-center gap-2 mb-1">
                   <span class="badge bg-primary-subtle text-primary">Fase 2</span>
-                  <strong class="small text-light">Estadistica Descriptiva en R</strong>
+                  <strong class="small text-dark">Estadistica Descriptiva en R</strong>
                 </div>
                 <p class="small text-muted mb-0">Calculo automatizado de media, mediana, varianza y desviacion estandar mediante llamadas a Rscript.</p>
               </div>
@@ -385,7 +390,7 @@
               <div>
                 <div class="d-flex align-items-center gap-2 mb-1">
                   <span class="badge bg-warning-subtle text-warning">Fase 3</span>
-                  <strong class="small text-light">Modelos Probabilisticos</strong>
+                  <strong class="small text-dark">Modelos Probabilisticos</strong>
                 </div>
                 <p class="small text-muted mb-0">Ajuste de distribuciones binomiales y pruebas de hipotesis para eventos acusticos.</p>
               </div>
@@ -409,7 +414,7 @@
         <span class="footer-copy">Proyecto de Estadistica &copy; 2026</span>
       </div>
       <div class="footer-right">
-        <span class="text-muted small">Desarrollado sobre Spark Admin UI</span>
+        <span class="text-muted small">Monitoreo Remoto ESP32 + INMP441</span>
       </div>
     </footer>
 
@@ -422,11 +427,11 @@
   <!-- Scripts de Terceros Spark Admin -->
   <script src="assets/libs/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Modulos de Monitoreo de Audio -->
-  <script src="assets/js/audio-core.js"></script>
-  <script src="assets/js/audio-visualizer.js"></script>
-  <script src="assets/js/audio-transmitter.js"></script>
-  <script src="assets/js/app.js"></script>
+  <!-- Modulos de Audio Organizados (con control de version contra cache) -->
+  <script src="assets/js/audio-core.js?v=3"></script>
+  <script src="assets/js/audio-visualizer.js?v=3"></script>
+  <script src="assets/js/audio-transmitter.js?v=3"></script>
+  <script src="assets/js/app.js?v=3"></script>
 
 </body>
 

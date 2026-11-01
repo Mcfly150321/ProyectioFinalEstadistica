@@ -13,7 +13,7 @@ import struct
 import subprocess
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -135,7 +135,13 @@ def analizar_bloque_pcm16(audio_bytes, sample_rate=SAMPLE_RATE):
     """
     num_samples = len(audio_bytes) // 2
     if num_samples == 0:
-        return {"timestamp": int(time.time() * 1000), "sampleRate": sample_rate, "rms": 0.0, "db": -60.0, "peakFrequencyHz": 0}
+        return {
+            "timestamp": int(time.time() * 1000),
+            "sampleRate": sample_rate,
+            "rms": 0.0,
+            "db": -60.0,
+            "peakFrequencyHz": 0
+        }
 
     samples = struct.unpack(f"<{num_samples}h", audio_bytes[:num_samples * 2])
 
@@ -153,9 +159,8 @@ def analizar_bloque_pcm16(audio_bytes, sample_rate=SAMPLE_RATE):
     rms = math.sqrt(sum_squares / num_samples)
     db = max(-60.0, round(20.0 * math.log10(rms), 2)) if rms > 0.0001 else -60.0
 
-    # Estimacion rapida de frecuencia dominante por cruces por cero
     duration_sec = num_samples / float(sample_rate)
-    est_freq = int((zero_crossings / 2.0) / duration_sec) if rms > 0.01 and duration_sec > 0 else 0
+    est_freq = int((zero_crossings / 2.0) / duration_sec) if rms > 0.008 and duration_sec > 0 else 0
 
     return {
         "timestamp": int(time.time() * 1000),
@@ -203,6 +208,13 @@ app = FastAPI(title="Audio Analytics Server - ESP32 & Oracle")
 esp_connection: WebSocket | None = None
 browser_connections: set[WebSocket] = set()
 is_recording: bool = False
+latest_metrics: dict = {
+    "timestamp": 0,
+    "sampleRate": SAMPLE_RATE,
+    "rms": 0.0,
+    "db": -60.0,
+    "peakFrequencyHz": 0
+}
 
 # Localizar carpeta Front/
 FRONT_DIR = os.path.join(PROJECT_ROOT, "Front")
@@ -210,9 +222,32 @@ if not os.path.isdir(FRONT_DIR):
     FRONT_DIR = os.path.join(BACKEND_DIR, "Front")
 
 
+@app.middleware("http")
+async def disable_static_cache(request: Request, call_next):
+    """
+    Evita que el navegador guarde en cache versiones antiguas de los JS/CSS/HTML.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/Front") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 @app.get("/")
 async def root_redirect():
     return RedirectResponse(url="/Front/index.html")
+
+
+def clave_web_valida(password: str) -> bool:
+    """
+    Compara la clave recibida contra WEB_PASSWORD, tolerando que proxies como
+    Ngrok conviertan el signo '+' en espacio ' ' dentro de query strings.
+    """
+    if not password:
+        return False
+    return password == WEB_PASSWORD or password.replace(" ", "+") == WEB_PASSWORD
 
 
 @app.post("/api/auth")
@@ -226,9 +261,30 @@ async def verificar_clave(request: Request):
     except Exception:
         password = ""
 
-    if password == WEB_PASSWORD:
-        return JSONResponse({"authenticated": True, "status": "ok"})
+    if clave_web_valida(password):
+        return JSONResponse({
+            "authenticated": True,
+            "status": "ok",
+            "esp_connected": esp_connection is not None,
+            "recording": is_recording,
+            "metrics": latest_metrics
+        })
     return JSONResponse({"authenticated": False, "error": "Clave incorrecta"}, status_code=401)
+
+
+@app.get("/api/status")
+async def obtener_estado(password: str = ""):
+    """
+    Devuelve el estado actual del ESP32 y las ultimas metricas para el frontend.
+    """
+    if not clave_web_valida(password):
+        return JSONResponse({"authenticated": False, "error": "No autorizado"}, status_code=401)
+    return JSONResponse({
+        "type": "status",
+        "esp_connected": esp_connection is not None,
+        "recording": is_recording,
+        "metrics": latest_metrics
+    })
 
 
 async def broadcast_status():
@@ -238,7 +294,8 @@ async def broadcast_status():
     status_data = json.dumps({
         "type": "status",
         "esp_connected": esp_connection is not None,
-        "recording": is_recording
+        "recording": is_recording,
+        "metrics": latest_metrics
     })
     desconectados = []
     for client in list(browser_connections):
@@ -250,12 +307,42 @@ async def broadcast_status():
         browser_connections.discard(c)
 
 
+async def broadcast_audio_and_metrics(audio_data: bytes, metricas: dict):
+    """
+    Envia a cada navegador conectado tanto el JSON de metricas como el bloque
+    binario PCM16 para el espectro FFT, osciloscopio y reproduccion de audio.
+    """
+    if not browser_connections:
+        return
+
+    metrics_msg = json.dumps({
+        "type": "metrics",
+        "esp_connected": True,
+        "recording": True,
+        "timestamp": metricas["timestamp"],
+        "sampleRate": metricas["sampleRate"],
+        "rms": metricas["rms"],
+        "db": metricas["db"],
+        "peakFrequencyHz": metricas["peakFrequencyHz"]
+    })
+
+    desconectados = []
+    for client in list(browser_connections):
+        try:
+            await client.send_text(metrics_msg)
+            await client.send_bytes(audio_data)
+        except Exception:
+            desconectados.append(client)
+    for c in desconectados:
+        browser_connections.discard(c)
+
+
 @app.websocket("/ws/esp")
 async def websocket_esp(websocket: WebSocket):
     """
     Endpoint exclusivo para el ESP32. Valida ESP_TOKEN antes de aceptar datos.
     """
-    global esp_connection, is_recording
+    global esp_connection, is_recording, latest_metrics
 
     token_query = websocket.query_params.get("token", "")
     token_header = websocket.headers.get("x-esp-token", "")
@@ -279,25 +366,21 @@ async def websocket_esp(websocket: WebSocket):
                 break
 
             if "bytes" in message and message["bytes"] is not None:
-                if is_recording:
-                    audio_data = message["bytes"]
+                audio_data = message["bytes"]
+                if not is_recording:
+                    is_recording = True
+                    await broadcast_status()
 
-                    # 1. Analizar bloque PCM y mostrar vumetro en consola
-                    metricas = analizar_bloque_pcm16(audio_data)
-                    imprimir_vu_metro(metricas["db"], metricas["rms"], metricas["peakFrequencyHz"])
+                # 1. Analizar bloque PCM y mostrar vumetro en consola
+                metricas = analizar_bloque_pcm16(audio_data)
+                latest_metrics = metricas
+                imprimir_vu_metro(metricas["db"], metricas["rms"], metricas["peakFrequencyHz"])
 
-                    # 2. Guardar en PostgreSQL (Fase 1)
-                    insertar_en_postgresql(metricas)
+                # 2. Guardar en PostgreSQL (Fase 1)
+                insertar_en_postgresql(metricas)
 
-                    # 3. Retransmitir audio binario a los navegadores autenticados
-                    desconectados = []
-                    for client in list(browser_connections):
-                        try:
-                            await client.send_bytes(audio_data)
-                        except Exception:
-                            desconectados.append(client)
-                    for c in desconectados:
-                        browser_connections.discard(c)
+                # 3. Retransmitir metricas + audio binario a los navegadores autenticados
+                await broadcast_audio_and_metrics(audio_data, metricas)
 
             elif "text" in message and message["text"] is not None:
                 try:
@@ -328,29 +411,47 @@ async def websocket_client(websocket: WebSocket):
     Endpoint para los navegadores de monitoreo. Requiere WEB_PASSWORD valida.
     """
     password = websocket.query_params.get("password", "")
-    if password != WEB_PASSWORD:
+    if not clave_web_valida(password):
+        print("\n\033[1;31m[WEB] Intento de conexion WebSocket rechazado: WEB_PASSWORD incorrecta.\033[0m")
         await websocket.close(code=1008)
         return
 
     await websocket.accept()
     browser_connections.add(websocket)
+    print(f"\n\033[1;36m[WEB] Panel de monitoreo conectado ({len(browser_connections)} activos).\033[0m")
 
     # Enviar estado inmediato al conectar
     await websocket.send_text(json.dumps({
         "type": "status",
         "esp_connected": esp_connection is not None,
-        "recording": is_recording
+        "recording": is_recording,
+        "metrics": latest_metrics
     }))
 
     try:
         while True:
-            await websocket.receive_text()
+            msg = await websocket.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+            if "text" in msg and msg["text"]:
+                try:
+                    payload = json.loads(msg["text"])
+                    if payload.get("type") == "ping":
+                        await websocket.send_text(json.dumps({
+                            "type": "status",
+                            "esp_connected": esp_connection is not None,
+                            "recording": is_recording,
+                            "metrics": latest_metrics
+                        }))
+                except Exception:
+                    pass
     except WebSocketDisconnect:
         pass
     except Exception:
         pass
     finally:
         browser_connections.discard(websocket)
+        print(f"\n\033[1;36m[WEB] Panel de monitoreo desconectado ({len(browser_connections)} activos).\033[0m")
 
 
 # Montar archivos estaticos del Frontend

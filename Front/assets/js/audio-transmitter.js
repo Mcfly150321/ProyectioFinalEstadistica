@@ -1,8 +1,7 @@
 /**
  * audio-transmitter.js
  * Cliente WebSocket de Monitoreo (/ws/client).
- * Recibe en tiempo real el flujo de audio binario del ESP32 y su estado de conexion/grabacion.
- * No envia audio desde el navegador.
+ * Recibe en tiempo real el flujo de audio binario del ESP32, sus metricas y su estado.
  */
 
 class EspMonitorClient {
@@ -11,6 +10,7 @@ class EspMonitorClient {
     this.password = options.password || '';
     this.socket = null;
     this.reconnectTimer = null;
+    this.pingInterval = null;
     this.shouldReconnect = false;
 
     this.onEspStatusChange = options.onEspStatusChange || (() => {});
@@ -25,12 +25,22 @@ class EspMonitorClient {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({ password })
       });
       if (!res.ok) return false;
       const data = await res.json();
-      return Boolean(data.authenticated);
+      if (data.authenticated) {
+        this.onEspStatusChange({
+          espConnected: Boolean(data.esp_connected),
+          recording: Boolean(data.recording)
+        });
+        return true;
+      }
+      return false;
     } catch (err) {
       console.error('Error al verificar clave:', err);
       return false;
@@ -56,6 +66,11 @@ class EspMonitorClient {
       this.socket = null;
     }
 
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host || 'localhost:5000';
     const encodedPass = encodeURIComponent(this.password);
@@ -67,6 +82,11 @@ class EspMonitorClient {
 
       this.socket.onopen = () => {
         console.log('[Monitor] Conectado al servidor de monitoreo.');
+        this.pingInterval = setInterval(() => {
+          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 3000);
       };
 
       this.socket.onmessage = async (event) => {
@@ -78,6 +98,12 @@ class EspMonitorClient {
                 espConnected: Boolean(msg.esp_connected),
                 recording: Boolean(msg.recording)
               });
+            } else if (msg.type === 'metrics') {
+              this.onEspStatusChange({
+                espConnected: true,
+                recording: true
+              });
+              this.audioCore.feedMetrics(msg);
             }
           } catch (e) {
             console.warn('Mensaje JSON invalido:', e);
@@ -88,6 +114,11 @@ class EspMonitorClient {
             ? event.data
             : await event.data.arrayBuffer();
 
+          this.onEspStatusChange({
+            espConnected: true,
+            recording: true
+          });
+
           const snapshot = this.audioCore.feedPcm16(buffer);
           if (snapshot) {
             this.onPacketReceived(snapshot);
@@ -96,15 +127,17 @@ class EspMonitorClient {
       };
 
       this.socket.onclose = (event) => {
-        // Codigo 1008 indica rechazo por clave incorrecta
+        if (this.pingInterval) {
+          clearInterval(this.pingInterval);
+          this.pingInterval = null;
+        }
         if (event.code === 1008) {
           this.shouldReconnect = false;
           this.onAuthError();
           return;
         }
-        this.onEspStatusChange({ espConnected: false, recording: false });
         if (this.shouldReconnect) {
-          this.reconnectTimer = setTimeout(() => this.openSocket(), 3000);
+          this.reconnectTimer = setTimeout(() => this.openSocket(), 2000);
         }
       };
 
@@ -118,6 +151,10 @@ class EspMonitorClient {
 
   disconnect() {
     this.shouldReconnect = false;
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
