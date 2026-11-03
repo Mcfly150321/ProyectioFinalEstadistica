@@ -70,7 +70,7 @@ last_db_insert_time = 0.0
 db_lock = threading.Lock()
 
 # Acumuladores dentro de la ventana de 15 minutos:
-# Guarda el pico mas alto (menos negativo en dBFS) y el acumulador para promedio real
+# Filtra ruidos irreales de desconexion (<= -59.5 dB) para promediar solo audio real recibido
 window_peak_db = -60.0
 window_db_samples = []
 
@@ -93,10 +93,14 @@ def limpiar_database_url(url: str) -> str:
 
 def registrar_muestra_en_ventana(db_val: float):
     """
-    Rastrea el pico maximo (menos negativo) y acumula muestras durante
-    el intervalo de 15 minutos para obtener el promedio y el pico exacto.
+    Rastrea el pico maximo y acumula muestras durante el intervalo de 15 minutos.
+    Descarta silencios de desconexion (<= -59.5 dB) para no sesgar el promedio real.
     """
     global window_peak_db, window_db_samples
+    # Descartar paquetes de silencio absoluto / corte de red (-60 dB)
+    if db_val <= -59.5:
+        return
+
     with db_lock:
         if db_val > window_peak_db:
             window_peak_db = db_val
@@ -106,14 +110,9 @@ def registrar_muestra_en_ventana(db_val: float):
 def insertar_en_postgresql(data: dict, force: bool = False):
     """
     Fase 1: Guarda mediciones en la tabla "Registros" de Supabase cada 15 minutos.
-    
-    Columnas en Supabase ("Registros"):
-      - id (int8): PK autoincrementable.
-      - created_at (timestamptz): Timestamp automatico de Supabase.
-      - Dia (date): Fecha del dia de recoleccion (ej: 2026-11-03).
-      - decibeles (float8 / numeric / real): Nivel promedio medido en el intervalo.
-      - superaumbral (bool): True si decibeles >= DB_THRESHOLD_DB (ensayo de Bernoulli).
-      - picoactual (float8): Maximo nivel de ruido registrado durante la ventana.
+    Calcula el promedio y el pico EXCLUSIVAMENTE sobre las muestras de audio
+    reales recibidas (descartando cortes o silencios por desconexion).
+    Si en toda la ventana no hubo paquetes validos, omite la insercion para no falsear la data.
     """
     global last_db_insert_time, window_peak_db, window_db_samples
 
@@ -132,15 +131,23 @@ def insertar_en_postgresql(data: dict, force: bool = False):
             return
         last_db_insert_time = ahora
 
-        # Calcular promedio y extraer el pico registrado en la ventana
         if window_db_samples:
             avg_db = sum(window_db_samples) / len(window_db_samples)
             peak_db = window_peak_db
+            total_muestras = len(window_db_samples)
             window_db_samples.clear()
             window_peak_db = -60.0
         else:
-            avg_db = float(data.get("db", -60.0))
-            peak_db = avg_db
+            # Si no hubo muestras reales en la ventana, verificar si data actual es valida
+            cand_db = float(data.get("db", -60.0))
+            if cand_db > -59.5:
+                avg_db = cand_db
+                peak_db = cand_db
+                total_muestras = 1
+            else:
+                # Toda la ventana estuvo desconectada: no insertar datos ficticios
+                print("\n\033[1;33m[DB SUPABASE] Ventana sin audio valido recibido (desconexion). Se omite insercion falsa.\033[0m")
+                return
 
     avg_db = round(avg_db, 2)
     peak_db = round(peak_db, 2)
@@ -160,7 +167,7 @@ def insertar_en_postgresql(data: dict, force: bool = False):
             """, (dia_actual, avg_db, supera_umbral, peak_db))
             res = cur.fetchone()
             conn.commit()
-            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB_prom={res[3]} | Pico={res[5]} | SuperaUmbral={res[4]}\033[0m")
+            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB_prom={res[3]} (sobre {total_muestras} muestras) | Pico={res[5]} | SuperaUmbral={res[4]}\033[0m")
         conn.close()
     except Exception as ex:
         print(f"\n\033[1;31m[DB ERROR] Error al insertar en Supabase: {ex}\033[0m")
