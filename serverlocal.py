@@ -69,6 +69,11 @@ SAMPLE_RATE = 16000
 last_db_insert_time = 0.0
 db_lock = threading.Lock()
 
+# Acumuladores dentro de la ventana de 15 minutos:
+# Guarda el pico mas alto (menos negativo en dBFS) y el acumulador para promedio real
+window_peak_db = -60.0
+window_db_samples = []
+
 
 # =========================================================================
 # 2. PERSISTENCIA EN SUPABASE POSTGRESQL (FASE 1) Y RSCRIPT (FASES 2 Y 3)
@@ -86,6 +91,18 @@ def limpiar_database_url(url: str) -> str:
     return url
 
 
+def registrar_muestra_en_ventana(db_val: float):
+    """
+    Rastrea el pico maximo (menos negativo) y acumula muestras durante
+    el intervalo de 15 minutos para obtener el promedio y el pico exacto.
+    """
+    global window_peak_db, window_db_samples
+    with db_lock:
+        if db_val > window_peak_db:
+            window_peak_db = db_val
+        window_db_samples.append(db_val)
+
+
 def insertar_en_postgresql(data: dict, force: bool = False):
     """
     Fase 1: Guarda mediciones en la tabla "Registros" de Supabase cada 15 minutos.
@@ -94,10 +111,11 @@ def insertar_en_postgresql(data: dict, force: bool = False):
       - id (int8): PK autoincrementable.
       - created_at (timestamptz): Timestamp automatico de Supabase.
       - Dia (date): Fecha del dia de recoleccion (ej: 2026-11-03).
-      - decibeles (float8 / numeric / real): Nivel medido en dB.
+      - decibeles (float8 / numeric / real): Nivel promedio medido en el intervalo.
       - superaumbral (bool): True si decibeles >= DB_THRESHOLD_DB (ensayo de Bernoulli).
+      - picoactual (float8): Maximo nivel de ruido registrado durante la ventana.
     """
-    global last_db_insert_time
+    global last_db_insert_time, window_peak_db, window_db_samples
 
     if not DATABASE_URL:
         return
@@ -114,9 +132,21 @@ def insertar_en_postgresql(data: dict, force: bool = False):
             return
         last_db_insert_time = ahora
 
-    db_val = float(data.get("db", -60.0))
+        # Calcular promedio y extraer el pico registrado en la ventana
+        if window_db_samples:
+            avg_db = sum(window_db_samples) / len(window_db_samples)
+            peak_db = window_peak_db
+            window_db_samples.clear()
+            window_peak_db = -60.0
+        else:
+            avg_db = float(data.get("db", -60.0))
+            peak_db = avg_db
+
+    avg_db = round(avg_db, 2)
+    peak_db = round(peak_db, 2)
+
     # Ensayo de Bernoulli: En dBFS (-46 a -37 dB), superar umbral (-40.0 dB) es ser >= -40.0
-    supera_umbral = bool(db_val >= DB_THRESHOLD_DB)
+    supera_umbral = bool(avg_db >= DB_THRESHOLD_DB)
     dia_actual = date.today()
 
     try:
@@ -124,13 +154,13 @@ def insertar_en_postgresql(data: dict, force: bool = False):
         conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO "Registros" ("Dia", "decibeles", "superaumbral")
-                VALUES (%s, %s, %s)
-                RETURNING id, created_at, "Dia", "decibeles", "superaumbral";
-            """, (dia_actual, db_val, supera_umbral))
+                INSERT INTO "Registros" ("Dia", "decibeles", "superaumbral", "picoactual")
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, created_at, "Dia", "decibeles", "superaumbral", "picoactual";
+            """, (dia_actual, avg_db, supera_umbral, peak_db))
             res = cur.fetchone()
             conn.commit()
-            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB={res[3]} | SuperaUmbral={res[4]}\033[0m")
+            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB_prom={res[3]} | Pico={res[5]} | SuperaUmbral={res[4]}\033[0m")
         conn.close()
     except Exception as ex:
         print(f"\n\033[1;31m[DB ERROR] Error al insertar en Supabase: {ex}\033[0m")
@@ -341,7 +371,7 @@ async def obtener_registros_db(password: str = "", limit: int = 20):
         conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=5)
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, created_at, "Dia", "decibeles", "superaumbral"
+                SELECT id, created_at, "Dia", "decibeles", "superaumbral", "picoactual"
                 FROM "Registros"
                 ORDER BY created_at DESC
                 LIMIT %s;
@@ -353,7 +383,8 @@ async def obtener_registros_db(password: str = "", limit: int = 20):
                     "created_at": f[1].isoformat() if f[1] else None,
                     "dia": str(f[2]),
                     "decibeles": round(float(f[3]), 2) if f[3] is not None else None,
-                    "superaumbral": bool(f[4])
+                    "superaumbral": bool(f[4]),
+                    "picoactual": round(float(f[5]), 2) if f[5] is not None else None
                 }
                 for f in filas
             ]
@@ -452,10 +483,13 @@ async def websocket_esp(websocket: WebSocket):
                 latest_metrics = metricas
                 imprimir_vu_metro(metricas["db"], metricas["rms"], metricas["peakFrequencyHz"])
 
-                # 2. Guardar en Supabase PostgreSQL (cada 15 minutos)
+                # 2. Registrar muestra en ventana de 15 min y actualizar pico mas alto
+                registrar_muestra_en_ventana(metricas["db"])
+
+                # 3. Guardar en Supabase PostgreSQL (cada 15 minutos)
                 insertar_en_postgresql(metricas)
 
-                # 3. Retransmitir metricas + audio binario a los navegadores autenticados
+                # 4. Retransmitir metricas + audio binario a los navegadores autenticados
                 await broadcast_audio_and_metrics(audio_data, metricas)
 
             elif "text" in message and message["text"] is not None:

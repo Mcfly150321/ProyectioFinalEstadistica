@@ -3,7 +3,7 @@
 #include <driver/i2s.h>
 
 // --- CREDENCIALES DE RED ---
-const char* ssid = "Meso";
+const char* ssid = "Prototipos_Ing";
 const char* password = "Un1f1M3so";
 
 // --- SERVIDOR NGROK ---
