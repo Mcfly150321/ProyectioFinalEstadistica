@@ -3,8 +3,8 @@
 #include <driver/i2s.h>
 
 // --- CREDENCIALES DE RED ---
-const char* ssid = "FAM OROZCO";
-const char* password = "Alfaluan#34";
+const char* ssid = "Meso";
+const char* password = "Un1f1M3so";
 
 // --- SERVIDOR NGROK ---
 // IMPORTANTE: En el servidor lanzar ngrok con:

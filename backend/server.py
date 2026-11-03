@@ -3,19 +3,26 @@
 Servidor unificado FastAPI + WebSockets para recepcion de audio desde ESP32 (INMP441)
 y panel de monitoreo web en Front/.
 Configurado para instancia de Oracle Cloud (0.0.0.0:5000) con autenticacion mediante .env,
-preparado para PostgreSQL (Fase 1) y RStudio / Rscript (Fases 2 y 3).
+persistencia periodica en Supabase PostgreSQL (Fase 1) y llamadas a Rscript (Fases 2 y 3).
 """
 
+from datetime import date
 import json
 import math
 import os
 import struct
 import subprocess
+import threading
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 
 # =========================================================================
 # 1. CARGA DE CONFIGURACION Y VARIABLES DE ENTORNO (.env)
@@ -52,50 +59,81 @@ cargar_variables_env()
 
 ESP_TOKEN = os.environ.get("ESP_TOKEN", "EstadisticaProyecto123*esp32_123")
 WEB_PASSWORD = os.environ.get("WEB_PASSWORD", "Estadistica2026**++")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+DB_INTERVAL_MINUTES = float(os.environ.get("DB_INTERVAL_MINUTES", "15"))
+DB_THRESHOLD_DB = float(os.environ.get("DB_THRESHOLD_DB", "-40.0"))
 PORT = int(os.environ.get("PORT", 5000))
 SAMPLE_RATE = 16000
 
+# Control de temporizador para inserciones cada 15 minutos (o DB_INTERVAL_MINUTES)
+last_db_insert_time = 0.0
+db_lock = threading.Lock()
+
 
 # =========================================================================
-# 2. INTEGRACIONES FUTURAS: POSTGRESQL (FASE 1) Y RSCRIPT (FASES 2 Y 3)
+# 2. PERSISTENCIA EN SUPABASE POSTGRESQL (FASE 1) Y RSCRIPT (FASES 2 Y 3)
 # =========================================================================
-def insertar_en_postgresql(data):
+def limpiar_database_url(url: str) -> str:
     """
-    Fase 1: Espacio reservado para persistencia en base de datos PostgreSQL.
+    Limpia parametros como pgbouncer=true que psycopg2 no reconoce en DSN.
+    """
+    if not url:
+        return ""
+    if "?pgbouncer=true" in url:
+        url = url.replace("?pgbouncer=true", "")
+    elif "&pgbouncer=true" in url:
+        url = url.replace("&pgbouncer=true", "")
+    return url
 
-    Estructura de data:
-      - timestamp: int (ms)
-      - sampleRate: int (16000)
-      - rms: float
-      - db: float
-      - peakFrequencyHz: int
+
+def insertar_en_postgresql(data: dict, force: bool = False):
     """
-    # =========================================================================
-    # BLOQUE POSTGRESQL (FASE 1)
-    # =========================================================================
-    # import psycopg2
-    # conn = psycopg2.connect(
-    #     dbname="estadistica_db",
-    #     user="postgres",
-    #     password="tu_password",
-    #     host="localhost",
-    #     port=5432
-    # )
-    # with conn.cursor() as cur:
-    #     cur.execute("""
-    #         INSERT INTO registro_audio (timestamp_ms, sample_rate, rms, db, peak_freq_hz)
-    #         VALUES (%s, %s, %s, %s, %s);
-    #     """, (
-    #         data.get('timestamp'),
-    #         data.get('sampleRate'),
-    #         data.get('rms'),
-    #         data.get('db'),
-    #         data.get('peakFrequencyHz')
-    #     ))
-    # conn.commit()
-    # conn.close()
-    # =========================================================================
-    pass
+    Fase 1: Guarda mediciones en la tabla "Registros" de Supabase cada 15 minutos.
+    
+    Columnas en Supabase ("Registros"):
+      - id (int8): PK autoincrementable.
+      - created_at (timestamptz): Timestamp automatico de Supabase.
+      - Dia (date): Fecha del dia de recoleccion (ej: 2026-11-03).
+      - decibeles (float8 / numeric / real): Nivel medido en dB.
+      - superaumbral (bool): True si decibeles >= DB_THRESHOLD_DB (ensayo de Bernoulli).
+    """
+    global last_db_insert_time
+
+    if not DATABASE_URL:
+        return
+
+    if psycopg2 is None:
+        print("\n\033[1;33m[DB] psycopg2 no instalado. Ejecuta: pip install psycopg2-binary\033[0m")
+        return
+
+    ahora = time.time()
+    intervalo_segundos = DB_INTERVAL_MINUTES * 60.0
+
+    with db_lock:
+        if not force and (ahora - last_db_insert_time < intervalo_segundos):
+            return
+        last_db_insert_time = ahora
+
+    db_val = float(data.get("db", -60.0))
+    # Ensayo de Bernoulli: En dBFS (-46 a -37 dB), superar umbral (-40.0 dB) es ser >= -40.0
+    supera_umbral = bool(db_val >= DB_THRESHOLD_DB)
+    dia_actual = date.today()
+
+    try:
+        dsn = limpiar_database_url(DATABASE_URL)
+        conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO "Registros" ("Dia", "decibeles", "superaumbral")
+                VALUES (%s, %s, %s)
+                RETURNING id, created_at, "Dia", "decibeles", "superaumbral";
+            """, (dia_actual, db_val, supera_umbral))
+            res = cur.fetchone()
+            conn.commit()
+            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB={res[3]} | SuperaUmbral={res[4]}\033[0m")
+        conn.close()
+    except Exception as ex:
+        print(f"\n\033[1;31m[DB ERROR] Error al insertar en Supabase: {ex}\033[0m")
 
 
 def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):
@@ -203,7 +241,7 @@ def imprimir_vu_metro(db, rms, peak_hz, total_bars=30):
 # =========================================================================
 # 4. APLICACION FASTAPI Y RUTAS WEBSOCKET / HTTP
 # =========================================================================
-app = FastAPI(title="Audio Analytics Server - ESP32 & Oracle")
+app = FastAPI(title="Audio Analytics Server - ESP32, Supabase & Oracle")
 
 esp_connection: WebSocket | None = None
 browser_connections: set[WebSocket] = set()
@@ -285,6 +323,44 @@ async def obtener_estado(password: str = ""):
         "recording": is_recording,
         "metrics": latest_metrics
     })
+
+
+@app.get("/api/db/recent")
+async def obtener_registros_db(password: str = "", limit: int = 20):
+    """
+    Devuelve los ultimos registros guardados en la tabla 'Registros' de Supabase.
+    """
+    if not clave_web_valida(password):
+        return JSONResponse({"authenticated": False, "error": "No autorizado"}, status_code=401)
+
+    if not DATABASE_URL or psycopg2 is None:
+        return JSONResponse({"registros": [], "status": "db_no_configurada"})
+
+    try:
+        dsn = limpiar_database_url(DATABASE_URL)
+        conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=5)
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, created_at, "Dia", "decibeles", "superaumbral"
+                FROM "Registros"
+                ORDER BY created_at DESC
+                LIMIT %s;
+            """, (limit,))
+            filas = cur.fetchall()
+            registros = [
+                {
+                    "id": f[0],
+                    "created_at": f[1].isoformat() if f[1] else None,
+                    "dia": str(f[2]),
+                    "decibeles": round(float(f[3]), 2) if f[3] is not None else None,
+                    "superaumbral": bool(f[4])
+                }
+                for f in filas
+            ]
+        conn.close()
+        return JSONResponse({"registros": registros, "status": "ok"})
+    except Exception as ex:
+        return JSONResponse({"error": str(ex), "registros": []}, status_code=500)
 
 
 async def broadcast_status():
@@ -376,7 +452,7 @@ async def websocket_esp(websocket: WebSocket):
                 latest_metrics = metricas
                 imprimir_vu_metro(metricas["db"], metricas["rms"], metricas["peakFrequencyHz"])
 
-                # 2. Guardar en PostgreSQL (Fase 1)
+                # 2. Guardar en Supabase PostgreSQL (cada 15 minutos)
                 insertar_en_postgresql(metricas)
 
                 # 3. Retransmitir metricas + audio binario a los navegadores autenticados
@@ -464,5 +540,9 @@ if __name__ == "__main__":
     print(f"\033[1;32mServidor Unificado Audio Analytics escuchando en 0.0.0.0:{PORT}\033[0m")
     print(f"Frontend servido desde: \033[36m{FRONT_DIR}\033[0m")
     print(f"Seguridad .env activa : \033[33mESP_TOKEN y WEB_PASSWORD cargados\033[0m")
+    if DATABASE_URL:
+        print(f"Supabase DB activa    : \033[32mRegistros cada {DB_INTERVAL_MINUTES} min | Umbral: {DB_THRESHOLD_DB} dB\033[0m")
+    else:
+        print("\033[33mSupabase DB           : DATABASE_URL no configurada en .env\033[0m")
     print("\033[1;34m" + "=" * 68 + "\033[0m")
     uvicorn.run(app, host="0.0.0.0", port=PORT)
