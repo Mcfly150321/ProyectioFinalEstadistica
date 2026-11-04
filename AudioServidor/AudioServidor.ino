@@ -3,7 +3,7 @@
 #include <driver/i2s.h>
 
 // --- CREDENCIALES DE RED ---
-const char* ssid = "Prototipos_Ing";
+const char* ssid = "Meso";
 const char* password = "Un1f1M3so";
 
 // --- SERVIDOR NGROK ---
@@ -182,7 +182,8 @@ void loop() {
                 prevInput = x;
                 prevOutput = y;
 
-                int32_t sample16 = y >> 6;
+                // Ajustar ganancia limpia a 16 bits (>> 3 para sensibilidad optima con INMP441)
+                int32_t sample16 = y >> 3;
 
                 if (sample16 > 32767) sample16 = 32767;
                 if (sample16 < -32768) sample16 = -32768;

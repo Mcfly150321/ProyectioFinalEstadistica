@@ -126,8 +126,9 @@ class AudioCore {
       source.connect(this.analyser);
 
       const currentTime = this.audioCtx.currentTime;
+      // Colchon dinamico de 200 ms: absorbe la transmision de 128 ms mas la latencia de Ngrok
       if (this.nextStartTime < currentTime) {
-        this.nextStartTime = currentTime + 0.12;
+        this.nextStartTime = currentTime + 0.22;
       }
       source.start(this.nextStartTime);
       this.nextStartTime += audioBuffer.duration;
