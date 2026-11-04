@@ -156,21 +156,27 @@ def insertar_en_postgresql(data: dict, force: bool = False):
     supera_umbral = bool(avg_db >= DB_THRESHOLD_DB)
     dia_actual = date.today()
 
-    try:
-        dsn = limpiar_database_url(DATABASE_URL)
-        conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO "Registros" ("Dia", "decibeles", "superaumbral", "picoactual")
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, created_at, "Dia", "decibeles", "superaumbral", "picoactual";
-            """, (dia_actual, avg_db, supera_umbral, peak_db))
-            res = cur.fetchone()
-            conn.commit()
-            print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB_prom={res[3]} (sobre {total_muestras} muestras) | Pico={res[5]} | SuperaUmbral={res[4]}\033[0m")
-        conn.close()
-    except Exception as ex:
-        print(f"\n\033[1;31m[DB ERROR] Error al insertar en Supabase: {ex}\033[0m")
+    def _ejecutar_insert():
+        try:
+            dsn = limpiar_database_url(DATABASE_URL)
+            conn = psycopg2.connect(dsn, sslmode="require", connect_timeout=10)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO "Registros" ("Dia", "decibeles", "superaumbral", "picoactual")
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, created_at, "Dia", "decibeles", "superaumbral", "picoactual";
+                """, (dia_actual, avg_db, supera_umbral, peak_db))
+                res = cur.fetchone()
+                conn.commit()
+                print(f"\n\033[1;32m[DB SUPABASE] Registro guardado -> id={res[0]} | Dia={res[2]} | dB_prom={res[3]} (sobre {total_muestras} muestras) | Pico={res[5]} | SuperaUmbral={res[4]}\033[0m")
+            conn.close()
+        except Exception as ex:
+            print(f"\n\033[1;31m[DB ERROR] Error al insertar en Supabase: {ex}\033[0m")
+
+    if force:
+        _ejecutar_insert()
+    else:
+        threading.Thread(target=_ejecutar_insert, daemon=True).start()
 
 
 def procesar_estadisticas_r(datos_audio, script_name="analisis.R"):

@@ -25,10 +25,9 @@ const char* esp_token = "EstadisticaProyecto123*esp32_123";
 
 #define I2S_PORT    I2S_NUM_0
 
-// Bloques optimizados de 2048 muestras (128 ms por paquete a 16 kHz)
-// Reduce la frecuencia de transmision a la mitad (~7.8 paq/s) aliviando la red y evitando cortes
+// Bloques de 1024 muestras (64 ms por paquete a 16 kHz)
 #define SAMPLE_RATE 16000
-#define CHUNK_SAMPLES 2048
+#define CHUNK_SAMPLES 1024
 
 int32_t rawBuffer[CHUNK_SAMPLES];
 int16_t pcmBuffer[CHUNK_SAMPLES];
@@ -94,7 +93,7 @@ void configurarI2S() {
         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count = 8,
-        .dma_buf_len = 1024,
+        .dma_buf_len = 512,
         .use_apll = true,
         .tx_desc_auto_clear = false,
         .fixed_mclk = 0
