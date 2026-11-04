@@ -18,6 +18,9 @@ class AudioCore {
     this.isPlaybackEnabled = false;
     this.nextStartTime = 0;
     this.lastPacketTime = 0;
+    this.activeSources = new Set();
+    this.lastCleanupTime = Date.now();
+    this.cleanupIntervalMs = 120000; // Limpieza automatica cada 2 minutos
 
     const bins = this.fftSize / 2;
     this.latestSnapshot = {
@@ -78,6 +81,27 @@ class AudioCore {
   }
 
   /**
+   * Purga todos los nodos de audio en cola y reinicia el reloj de sincronizacion
+   * para evitar que el sonido se granule con el paso de los minutos.
+   */
+  resetAudioQueue() {
+    for (const src of this.activeSources) {
+      try {
+        src.stop();
+      } catch (e) {}
+      try {
+        src.disconnect();
+      } catch (e) {}
+    }
+    this.activeSources.clear();
+    if (this.audioCtx) {
+      this.nextStartTime = this.audioCtx.currentTime + 0.22;
+    } else {
+      this.nextStartTime = 0;
+    }
+  }
+
+  /**
    * Recibe un ArrayBuffer con muestras PCM Int16 (16 kHz) provenientes del ESP32,
    * encola el audio en el Jitter Buffer de Web Audio API y actualiza metricas.
    */
@@ -114,17 +138,33 @@ class AudioCore {
       : 0;
 
     if (this.audioCtx && this.audioCtx.state === 'running') {
+      const nowMs = Date.now();
+      // Mantenimiento periodico cada 2 minutos: purgar nodos acumulados y resincronizar reloj
+      if (nowMs - this.lastCleanupTime >= this.cleanupIntervalMs) {
+        this.resetAudioQueue();
+        this.lastCleanupTime = nowMs;
+      }
+
       const audioBuffer = this.audioCtx.createBuffer(1, numSamples, this.sampleRate);
       audioBuffer.getChannelData(0).set(float32Data);
 
       const source = this.audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.analyser);
+      this.activeSources.add(source);
+
+      // Liberar nodo inmediatamente al terminar sus 64 ms para que no se acumulen miles en memoria
+      source.onended = () => {
+        this.activeSources.delete(source);
+        try {
+          source.disconnect();
+        } catch (e) {}
+      };
 
       const currentTime = this.audioCtx.currentTime;
-      // Si se quedo atras o se adelanto demasiado (> 0.5s), re-sincronizar a 150 ms
-      if (this.nextStartTime < currentTime || this.nextStartTime > currentTime + 0.5) {
-        this.nextStartTime = currentTime + 0.15;
+      // Mantener colchon estable: si se acerca a menos de 20 ms o se atrasa > 0.8 s, re-sincronizar a 220 ms
+      if (this.nextStartTime < currentTime + 0.02 || this.nextStartTime > currentTime + 0.8) {
+        this.nextStartTime = currentTime + 0.22;
       }
       source.start(this.nextStartTime);
       this.nextStartTime += audioBuffer.duration;
