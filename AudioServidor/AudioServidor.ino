@@ -35,23 +35,9 @@ int16_t pcmBuffer[CHUNK_SAMPLES];
 bool escuchando = false;
 bool estadoBotonAnterior = HIGH;
 
-// Variables para limpieza de offset DC y suavizado de ruido de alta frecuencia
-int64_t dcOffset = 0;
-bool dcInicializado = false;
-int32_t prevCleanSample = 0;
-
-// Limpieza periodica automatica de buffers I2S y filtro (cada 2 minutos)
-#define INTERVALO_LIMPIEZA_MS 120000UL
-unsigned long ultimaLimpiezaMs = 0;
-
-void limpiarBuffersAudio() {
-    dcOffset = 0;
-    dcInicializado = false;
-    prevCleanSample = 0;
-    i2s_zero_dma_buffer(I2S_PORT);
-    ultimaLimpiezaMs = millis();
-    Serial.println("[MANTENIMIENTO] Buffers DMA I2S y filtro reiniciados limpiamente.");
-}
+// Variables para el filtro DC-Blocker
+int32_t prevInput = 0;
+int32_t prevOutput = 0;
 
 WebSocketsClient webSocket;
 
@@ -196,7 +182,9 @@ void loop() {
     if (estadoBotonAnterior == HIGH && estadoBotonActual == LOW) {
         escuchando = !escuchando;
 
-        limpiarBuffersAudio();
+        prevInput = 0;
+        prevOutput = 0;
+        i2s_zero_dma_buffer(I2S_PORT);
 
         String jsonString = "{\"recording\":" + String(escuchando ? "true" : "false") + "}";
         webSocket.sendTXT(jsonString);
@@ -208,47 +196,22 @@ void loop() {
 
     // Si esta activo el modo escucha, leer bloque completo de I2S y enviar por WebSocket
     if (escuchando && webSocket.isConnected()) {
-        // Limpieza automatica periodica cada 2 minutos para evitar granulacion o acumulacion en DMA
-        if (millis() - ultimaLimpiezaMs >= INTERVALO_LIMPIEZA_MS) {
-            limpiarBuffersAudio();
-        }
-
         size_t bytesLeidos = 0;
         esp_err_t res = i2s_read(I2S_PORT, rawBuffer, sizeof(rawBuffer), &bytesLeidos, pdMS_TO_TICKS(100));
 
         if (res == ESP_OK && bytesLeidos > 0) {
             int muestras = bytesLeidos / sizeof(int32_t);
 
-            // 1. Calcular el centro DC exacto del bloque en 64 bits (sin desbordamiento ni retardo de 3s)
-            int64_t sumaBloque = 0;
-            for (int i = 0; i < muestras; i++) {
-                sumaBloque += (rawBuffer[i] >> 8);
-            }
-            int32_t mediaBloque = (int32_t)(sumaBloque / muestras);
-
-            if (!dcInicializado) {
-                dcOffset = mediaBloque;
-                dcInicializado = true;
-            } else {
-                // Seguimiento suave del centro DC
-                dcOffset = (dcOffset * 7 + mediaBloque) / 8;
-            }
-
             for (int i = 0; i < muestras; i++) {
                 int32_t x = rawBuffer[i] >> 8;
 
-                // 2. Quitar offset DC sin derivar (evita amplificar estatica de 3 kHz)
-                int32_t centrado = x - (int32_t)dcOffset;
+                // Filtro pasa-altos DC-Blocker
+                int32_t y = x - prevInput + ((prevOutput * 255) >> 8);
+                prevInput = x;
+                prevOutput = y;
 
-                // 3. Suavizado pasa-bajos de 2 muestras para limpiar ruido electrico de reloj I2S
-                int32_t limpio = (centrado + prevCleanSample) / 2;
-                prevCleanSample = centrado;
-
-                // 4. Ganancia balanceada (>> 4) con reduccion suave de piso de ruido electrico
-                int32_t sample16 = limpio >> 4;
-                if (sample16 > -120 && sample16 < 120) {
-                    sample16 /= 4;
-                }
+                // Conversion exacta a 16 bits (raw >> 14 como en ReceptorLocalAudioButton)
+                int32_t sample16 = y >> 6;
 
                 if (sample16 > 32767) sample16 = 32767;
                 if (sample16 < -32768) sample16 = -32768;

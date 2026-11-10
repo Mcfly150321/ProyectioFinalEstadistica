@@ -592,4 +592,4 @@ if __name__ == "__main__":
     else:
         print("\033[33mSupabase DB           : DATABASE_URL no configurada en .env\033[0m")
     print("\033[1;34m" + "=" * 68 + "\033[0m")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="127.0.0.1", port=PORT)
