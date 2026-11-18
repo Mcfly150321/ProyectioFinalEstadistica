@@ -1,3 +1,8 @@
 /entorno
 instrucciones.txt
 .env
+reportes/ejemplo/
+*.aux
+*.log
+*.out
+*.toc

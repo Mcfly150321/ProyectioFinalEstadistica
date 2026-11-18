@@ -1,105 +1,237 @@
-\documentclass[11pt,letterpaper]{article}
+\documentclass{article}
 
-\usepackage[utf8]{inputenc}
-\usepackage[spanish,es-nodecimaldot]{babel}
-\usepackage[margin=2cm]{geometry}
-\usepackage{amsmath,amssymb}
-\usepackage{graphicx}
+\usepackage{ragged2e}
 \usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{babel, positioning, arrows.meta}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[position=top, skip=8pt]{caption}
+\usepackage{listings}
+\usepackage{multicol}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
 \usepackage{tabularx}
 \usepackage{xcolor}
-\usepackage{titlesec}
-\usepackage{fancyhdr}
-\usepackage{hyperref}
-\usepackage{float}
-\usepackage{microtype}
 
-\definecolor{umesblue}{RGB}{20, 50, 100}
-\definecolor{umesred}{RGB}{180, 40, 40}
-\definecolor{darkgray}{RGB}{60, 60, 60}
+\geometry{a4paper, margin=1in}
+\setstretch{1.25}
 
-\hypersetup{
-    colorlinks=true,
-    linkcolor=umesblue,
-    urlcolor=umesblue,
-    citecolor=umesblue
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+
+% Configuración para código fuente
+\definecolor{codebg}{RGB}{248, 249, 250}
+\definecolor{codecomment}{RGB}{108, 117, 125}
+\definecolor{codekeyword}{RGB}{13, 110, 253}
+\definecolor{codestring}{RGB}{25, 135, 84}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=t,
+    commentstyle=\color{codecomment}\itshape,
+    keywordstyle=\color{codekeyword}\bfseries,
+    stringstyle=\color{codestring},
+    numbers=left,
+    numberstyle=\tiny\color{codecomment},
+    frame=single,
+    rulecolor=\color{gray!30},
+    tabsize=2,
+    showstringspaces=false
 }
 
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\small \textbf{UMES} -- Proyecto Final de Estadística}
-\fancyhead[R]{\small Análisis Acústico en Laboratorio de Prototipos}
-\fancyfoot[C]{\thepage}
-\renewcommand{\headrulewidth}{0.8pt}
-
-\titleformat{\section}{\Large\bfseries\color{umesblue}}{\thesection.}{0.5em}{}[\titlerule]
-\titleformat{\subsection}{\large\bfseries\color{darkgray}}{\thesubsection.}{0.5em}{}
-
 \begin{document}
+\pagestyle{empty}
 
 % ==============================================================================
-% PORTADA / ENCABEZADO
+% PORTADA INSTITUCIONAL FORMAL
 % ==============================================================================
-\begin{center}
-    {\large \textbf{UNIVERSIDAD MESOAMERICANA SEDE QUETZALTENANGO}}\\[0.2cm]
-    {\normalsize \textbf{FACULTAD DE INGENIERÍA -- INGENIERÍA EN SISTEMAS}}\\[0.4cm]
-    {\small \textbf{Catedrático:} Ing. Josué Cifuentes \quad | \quad \textbf{Cátedra:} Estadística}\\[0.6cm]
-    {\LARGE \textbf{\color{umesblue} Informe Técnico de Resultados y Memoria Estadística}}\\[0.3cm]
-    {\large \textbf{Análisis de Ruido y Tendencias en el Laboratorio de Prototipos}}\\[0.5cm]
-    \rule{\linewidth}{1.2pt}\\[0.3cm]
-\end{center}
+\begin{titlepage}
+    \centering
+    
+    % --- ENCABEZADO SUPERIOR CENTRADO ---
+    {\small \scshape 
+        UNIVERSIDAD MESOAMERICANA QUETZALTENANGO \\
+        FACULTAD DE INGENIERÍA \\
+        INGENIERÍA EN SISTEMAS, INFORMÁTICA Y CIENCIAS DE LA COMPUTACIÓN \\
+    }
+    
+    \vfill
+    
+    % --- LOGO CENTRADO ---
+    \includegraphics[width=0.68\textwidth]{meso.png}
+    
+    \vfill
+    
+    % --- TÍTULO PRINCIPAL ---
+    {\huge \bfseries Reporte Técnico y Memoria Estadística \\[0.4cm]}
+    {\Large Análisis de Ruido y Tendencias en el Laboratorio de Prototipos \\[0.3cm]}
+    {\normalsize Proyecto Final de Cátedra -- Catedrático: Ing. Josué Cifuentes}
+    
+    \vfill
+    \vfill
+    
+    % --- INFORMACIÓN DE LOS INTEGRANTES ---
+    {\large \textbf{Integrantes del Equipo:}} \\[0.35cm]
+    {\normalsize Arturo Alejandro Maldonado Orozco -- 202308110} \\[0.18cm]
+    {\normalsize Amilcar Joaquin Morales Huitz -- 202307016} \\[0.18cm]
+    {\normalsize Kevin Daniel Sosa Cutz -- 202508017} \\[0.18cm]
+    {\normalsize Katherine del Rosario Gramajo Alonzo -- 202508024} \\[0.18cm]
+    {\normalsize Brayan Alexander Maldonado Jocol -- 202507011} \\[0.18cm]
+    {\normalsize Yoselin Stefany Ordoñez Estrada -- 202508028} \\[0.7cm]
+    
+    {\small \scshape NOVIEMBRE, 2026}
+\end{titlepage}
 
-\vspace{-0.3cm}
-\noindent\textbf{Nombre del Estudiante:} Arturo \hfill \textbf{Fecha de Análisis:} Noviembre 2026\\
-\textbf{Sistema de Captura:} Microcontrolador ESP32 + Micrófono I2S INMP441\\
-\textbf{Base de Datos:} Supabase PostgreSQL \hfill \textbf{Herramienta Estadística:} RStudio / R 4.4+
-\vspace{0.2cm}
-\rule{\linewidth}{0.6pt}
+% --- ALINEACIÓN A LA IZQUIERDA PARA EL RESTO DEL DOCUMENTO ---
+\RaggedRight
+
+\newpage
+\tableofcontents
+\newpage
+
+\cleardoublepage
+\pagestyle{plain}
+\pagenumbering{arabic}
 
 % ==============================================================================
-% 1. INTRODUCCIÓN Y ARQUITECTURA DEL SISTEMA
+% 1. INTRODUCCIÓN
 % ==============================================================================
-\section{Introducción y Contexto del Monitoreo}
-El presente proyecto evalúa el comportamiento acústico y los patrones de ruido en el \textbf{Laboratorio de Prototipos de la Universidad Mesoamericana (UMES)}, contrastando las mediciones contra umbrales normativos de exposición y desarrollando modelos de regresión temporal y probabilidad binomial.
+\section{Introducción}
+El confort acústico en espacios de educación superior constituye un factor determinante en el rendimiento intelectual, la capacidad de concentración y la salud auditiva de estudiantes y docentes. El presente informe documenta el desarrollo y los hallazgos del proyecto de investigación y monitoreo continuo del nivel de presión sonora en el \textbf{Laboratorio de Prototipos} de la Universidad Mesoamericana, Sede Quetzaltenango.
 
-\subsection{Descripción del Entorno Físico}
-El Laboratorio de Prototipos presenta la siguiente distribución operativa:
-\begin{itemize}
-    \item \textbf{3 Cubículos de Prototipado Especializado:} Estaciones de trabajo individuales o en parejas donde se instaló el nodo sensor ESP32 con micrófono digital INMP441. En ellos se realizan actividades de medición, programación y soldadura.
-    \item \textbf{1 Salón Principal con 4 Mesas de Trabajo Colaborativo:} Espacio amplio destinado a proyectos grupales y ensamble mecánico con capacidad simultánea para aproximadamente \textbf{40 estudiantes}.
-    \item \textbf{Dinámica de Ocupación:} El laboratorio presenta una concurrencia variable. El ruido ambiental combina la discusión técnica con maquinaria de prototipado rápido (impresoras 3D, fresadoras y fuentes de poder).
-\end{itemize}
-
-\subsection{Pipeline de Adquisición y Procesamiento de Datos}
-El sistema de monitoreo opera mediante un pipeline continuo:
+El estudio se estructuró a lo largo de cuatro fases metodológicas:
 \begin{enumerate}
-    \item \textbf{Adquisición Local:} El ESP32 captura audio PCM de 16 bits a 16 kHz mediante el micrófono I2S INMP441, calculando el valor eficaz (RMS) y la potencia relativa en decibeles escala digital ($\text{dBFS}$).
-    \item \textbf{Servidor y Persistencia:} Los datos se transmiten vía WebSockets a un backend en Python (FastAPI/Uvicorn), el cual acumula las lecturas y registra cada 15 minutos en Supabase PostgreSQL el promedio de decibeles, el pico y el estado del umbral.
-    \item \textbf{Estandarización Temporal (UTC a UTC-6):} El servidor almacena los registros con marca de tiempo UTC-0. El script de procesamiento en Python aplica la transformación a la hora oficial de Guatemala ($\text{UTC}-6$):
-    \begin{equation}
-        \text{Hora}_{\text{Guatemala}} = \text{Hora}_{\text{UTC}} - 6\text{ horas}
-    \end{equation}
-    \item \textbf{Calibración Acústica ($\text{dBFS} \rightarrow \text{dBA}$):} Dado que el INMP441 mide en decibeles fondo de escala digital ($\text{dBFS}$ negativos), se aplica la función de sonometría acústica equivalente:
-    \begin{equation}
-        \text{dBA} = \text{dBFS} + 105.0
-    \end{equation}
-    Bajo esta equivalencia, el umbral de $-40.0\text{ dBFS}$ corresponde con exactitud a $65.0\text{ dBA}$.
+    \item \textbf{Fase 1: Recolección y Marco Normativo:} Implementación de un nodo IoT embebido con microcontrolador ESP32 y micrófono digital I2S INMP441, transmitiendo lecturas cada 15 minutos hacia una base de datos PostgreSQL en Supabase, y estableciendo los umbrales de referencia basados en la Organización Mundial de la Salud (OMS), la norma ISO 1996 y el Acuerdo Gubernativo 229-2014 de la República de Guatemala.
+    \item \textbf{Fase 2: Estadística Descriptiva y Proyección de Tendencia (Día 6):} Cálculo riguroso de parámetros de tendencia central (media, mediana, moda) y medidas de dispersión (varianza muestral, desviación estándar, rango intercuartílico), junto con el ajuste de un modelo de regresión lineal en una franja horaria diurna fija para pronosticar el comportamiento al sexto día (lunes de retorno).
+    \item \textbf{Fase 3: Modelado Probabilístico (Bernoulli y Binomial):} Modelación matemática de eventos discretos de exceso acústico bajo distribución de Bernoulli y extensión a distribución Binomial $B(n, p)$ ante escenarios de ocupación simultánea de los 3 cubículos del laboratorio y las 7 estaciones de trabajo.
+    \item \textbf{Fase 4: Propuestas de Mitigación Acústica:} Diseño de cuatro ejes de intervención técnica y administrativa para controlar y reducir la contaminación sonora dentro del laboratorio.
 \end{enumerate}
 
 % ==============================================================================
-% 2. FASE 1: NORMATIVA Y AUDITORÍA
+% 2. ARQUITECTURA DEL SISTEMA Y CIRCUITO EMBEBIDO
 % ==============================================================================
-\section{Fase 1: Recolección y Marco Normativo de Ruido}
+\section{Arquitectura del Sistema y Circuito de Adquisición}
 
-\subsection{Definición del Umbral de Riesgo Aceptado}
-Para determinar el criterio de exceso sonoro, se adoptaron los estándares de la \textbf{Organización Mundial de la Salud (OMS)}, la norma \textbf{ISO 1996} y la legislación laboral guatemalteca (\textbf{Acuerdo Gubernativo 229-2014}):
+\subsection{Descripción del Entorno Físico del Laboratorio}
+El Laboratorio de Prototipos de la Facultad de Ingeniería presenta una configuración física mixta:
 \begin{itemize}
-    \item \textbf{Áreas de Estudio y Diseño Intelectual:} El límite óptimo se ubica en $55\text{ dBA}$.
-    \item \textbf{Talleres Universitarios y Laboratorios Técnicos:} El umbral crítico de tolerancia se establece en \textbf{65.0 dBA} (equivalente a $-40.0\text{ dBFS}$). Superar este límite incrementa el estrés cognitivo, dificulta la inteligibilidad del habla y eleva la tasa de error.
+    \item \textbf{3 Cubículos de Prototipado Especializado:} Estaciones de trabajo individuales o para parejas donde se ubicó el sensor de sonido. Se realizan en ellos actividades de diseño, programación de microcontroladores y pruebas de circuitos.
+    \item \textbf{1 Salón Principal con 4 Mesas de Trabajo Colaborativo:} Área compartida para el ensamblaje de proyectos de robótica, corte y pruebas mecánicas, con capacidad máxima para aproximadamente \textbf{40 estudiantes}.
 \end{itemize}
 
+\subsection{Especificaciones de Hardware y Sensores}
+Para garantizar fidelidad sonora y evitar distorsiones por ruido electromagnético de la línea analógica del ADC convencional, se seleccionó una arquitectura completamente digital basada en el protocolo inter-IC Sound (I2S):
+\begin{itemize}
+    \item \textbf{Microcontrolador:} ESP32 NodeMCU (Xtensa dual-core 32-bit LX6 a 240 MHz, conectividad Wi-Fi 802.11 b/g/n).
+    \item \textbf{Sensor Acústico:} Micrófono MEMS omnidireccional digital \textbf{INMP441} con convertidor analógico a digital (ADC) integrado de 24 bits y decodificador I2S directo.
+    \item \textbf{Pulsador de Control (Push Button):} Conmutador conectado en modo Pull-Up interno en el GPIO 5 para activar o pausar la transmisión de audio.
+    \item \textbf{Indicador de Estado (LED):} Diodo emisor de luz en GPIO 2 para retroalimentación visual de conexión y streaming activo.
+\end{itemize}
+
+\subsection{Diagrama de Conexión del Circuito}
+El cuadro \ref{tab:conexiones_esp32} detalla el conexionado punto a punto entre el ESP32 y el módulo INMP441, y la figura \ref{fig:diagrama_circuito} ilustra el esquema circuital.
+
+\begin{table}[H]
+\centering
+\caption{Mapeo de pines de la interfaz digital I2S entre ESP32 e INMP441.}
+\label{tab:conexiones_esp32}
+\vspace{0.2cm}
+\begin{tabular}{l l l l}
+\toprule
+\textbf{Módulo INMP441} & \textbf{Pin ESP32} & \textbf{Función de Señal} & \textbf{Descripción Técnica} \\
+\midrule
+VDD & 3.3V & Alimentación & Tensión de operación lógica ($3.0\text{V} - 3.6\text{V}$) \\
+GND & GND & Tierra común & Referencia de potencial cero \\
+SD (Serial Data) & GPIO 33 & I2S Data Input (DIN) & Flujo digital de datos PCM con signo \\
+SCK (Serial Clock) & GPIO 14 & Bit Clock (BCLK) & Reloj maestro de bits de muestreo \\
+WS (Word Select) & GPIO 27 & Left/Right Clock (LRCK) & Reloj selector de trama y canal \\
+L/R (Left / Right) & GND & Configuración de Canal & Forzado a canal izquierdo (Left Channel) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.95, every node/.style={transform shape}]
+    % Bloque ESP32
+    \draw[fill=blue!8, draw=blue!70, thick, rounded corners=4pt] (0,0) rectangle (4.5,5.5);
+    \node at (2.25,5.1) {\textbf{\large ESP32 DevKit}};
+    
+    % Pines ESP32
+    \node[anchor=west] at (0.2,4.3) {\small GPIO 33 (I2S\_SD)};
+    \node[anchor=west] at (0.2,3.5) {\small GPIO 14 (I2S\_SCK)};
+    \node[anchor=west] at (0.2,2.7) {\small GPIO 27 (I2S\_WS)};
+    \node[anchor=west] at (0.2,1.9) {\small 3.3V (VCC)};
+    \node[anchor=west] at (0.2,1.1) {\small GND (GND)};
+    \node[anchor=west] at (0.2,0.4) {\small GPIO 5 (Button)};
+    
+    % Bloque INMP441
+    \draw[fill=green!8, draw=green!60!black, thick, rounded corners=4pt] (8,1) rectangle (12.5,5.5);
+    \node at (10.25,5.1) {\textbf{\large INMP441 (MEMS)}};
+    
+    % Pines INMP441
+    \node[anchor=east] at (12.3,4.3) {\small SD (Data Out)};
+    \node[anchor=east] at (12.3,3.5) {\small SCK (BCLK)};
+    \node[anchor=east] at (12.3,2.7) {\small WS (LRCK)};
+    \node[anchor=east] at (12.3,1.9) {\small VDD ($3.3\text{V}$)};
+    \node[anchor=east] at (12.3,1.3) {\small GND / L/R};
+
+    % Conexiones de cableado
+    \draw[->, thick, red!70!black] (4.5,4.3) -- (8,4.3) node[midway, above] {\scriptsize Data Stream};
+    \draw[->, thick, orange!80!black] (4.5,3.5) -- (8,3.5) node[midway, above] {\scriptsize Clock ($BCLK$)};
+    \draw[->, thick, purple!80!black] (4.5,2.7) -- (8,2.7) node[midway, above] {\scriptsize Frame Sync ($WS$)};
+    \draw[-, thick, red] (4.5,1.9) -- (8,1.9) node[midway, above] {\scriptsize $3.3\text{V}$};
+    \draw[-, thick, black] (4.5,1.1) -- (6.2,1.1) -- (6.2,1.3) -- (8,1.3) node[midway, above] {\scriptsize GND};
+    \draw[-, thick, black] (12.5,1.3) -- (13.0,1.3) node[right] {\scriptsize L/R $\rightarrow$ GND};
+\end{tikzpicture}
+\caption{Esquema circuital de conexiones I2S entre el microcontrolador ESP32 y el micrófono INMP441.}
+\label{fig:diagrama_circuito}
+\end{figure}
+
+\subsection{Pipeline de Transmisión y Calibración Acústica}
+\begin{enumerate}
+    \item \textbf{Muestreo en el ESP32:} Se muestrea a $f_s = 16\text{ kHz}$ en paquetes de 1024 muestras (64 ms por trama).
+    \item \textbf{Transmisión WebSockets:} El microcontrolador envía los bloques binarios hacia el servidor Python FastAPI mediante túnel seguro Ngrok.
+    \item \textbf{Persistencia en Supabase:} El servidor calcula el promedio de nivel sonoro en decibeles y los picos transitorios, persistiendo en PostgreSQL cada 15 minutos.
+    \item \textbf{Transformación de Horario (UTC-0 a UTC-6):} Supabase almacena por defecto las marcas de tiempo en UTC (Tiempo Universal Coordinado). El script de extracción en Python aplica el desfase oficial:
+    \begin{equation}
+        \text{Hora}_{\text{Guatemala}} = \text{Hora}_{\text{UTC}} - 6\text{ horas}
+    \end{equation}
+    \item \textbf{Calibración a Decibeles Acústicos ($\text{dBA}$):} El micrófono MEMS registra en escala digital decibeles respecto al fondo de escala ($\text{dBFS}$, valores negativos de $-60.0\text{ a }-25.0\text{ dBFS}$). Se aplica la función de calibración estándar a presión sonora ponderada ($\text{dBA}$):
+    \begin{equation}
+        \text{dBA} = \text{dBFS} + 105.0
+    \end{equation}
+    Bajo esta relación física, el silencio de laboratorio ($-58\text{ dBFS}$) equivale a $47\text{ dBA}$, y el umbral fijado en el servidor ($-40.0\text{ dBFS}$) corresponde a $65.0\text{ dBA}$.
+\end{enumerate}
+
+% ==============================================================================
+% 3. FASE 1: RECOLECCIÓN Y MARCO NORMATIVO
+% ==============================================================================
+\section{Fase 1: Recolección de Datos y Marco Normativo de Ruido}
+
+\subsection{Normativa Internacional y Nacional Aplicable}
+El umbral de riesgo acústico fue definido contrastando tres marcos de referencia:
+\begin{itemize}
+    \item \textbf{Organización Mundial de la Salud (OMS):} Establece un límite continuo equivalente ($L_{Aeq}$) de \textbf{55 dBA} para salones de clase y áreas de cómputo, permitiendo un máximo de \textbf{65 dBA} durante actividades de laboratorio técnico o prototipado práctico.
+    \item \textbf{Norma ISO 1996 (Acústica -- Descripción y medición de ruido ambiental):} Fija el umbral de disrupción de la concentración y fatiga mental en \textbf{65 dBA}.
+    \item \textbf{Acuerdo Gubernativo 229-2014 (Reglamento de Salud y Seguridad Ocupacional de Guatemala):} Fija en su artículo 212 el límite de 85 dBA para jornada laboral de 8 horas sin equipo de protección. En el contexto universitario de la UMES, el riesgo no radica en la pérdida auditiva clínica, sino en la \textbf{pérdida de concentración intelectual, incremento de errores de diseño y fatiga cognitiva}.
+\end{itemize}
+
+Por consiguiente, el \textbf{Umbral Crítico de Riesgo} se estableció formalmente en:
+\begin{equation}
+    \text{Umbral de Riesgo} = \mathbf{65.0\text{ dBA}} \quad (\text{Equivalente digital: } \mathbf{-40.0\text{ dBFS}})
+\end{equation}
+
 \subsection{Auditoría de los Datos Extraídos de Supabase}
-Se extrajeron un total de \textbf{236 registros reales} correspondientes a los 4 días de medición (del 3 al 6 de noviembre de 2026), capturados a intervalos de 15 minutos. El cuadro \ref{tab:resumen_dias} resume el comportamiento por día.
+El script de extracción extrajo un total de \textbf{236 registros reales} correspondientes a los cuatro días consecutivos de muestreo continuo (del 3 al 6 de noviembre de 2026). El cuadro \ref{tab:resumen_dias} resume los indicadores por jornada.
 
 \begin{table}[H]
 \centering
@@ -120,25 +252,29 @@ Día 4 (2026-11-06, Domingo) & 42 & 48.82 & 93.13 & 0 & 0.00\% \\
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Interpretación Técnica del Comportamiento Diario:}
-El Día 1 registró el mayor porcentaje de exceso ($61.11\%$) debido a que el monitoreo inició en horario de máxima actividad lectiva diurna (09:33 a 19:51 hrs) con pruebas de laboratorio. Por el contrario, los Días 3 y 4 incluyen extensos periodos nocturnos y de fin de semana (00:00 a 06:00 hrs) donde el laboratorio se mantuvo cerrado, registrando el piso acústico del edificio ($\approx 46\text{--}49\text{ dBA}$).
+\noindent\textbf{Análisis de Variabilidad Diaria:}
+Se evidencia una notable heterogeneidad justificada por la naturaleza del monitoreo:
+\begin{itemize}
+    \item El \textbf{Día 1} registró el $61.11\%$ de los excesos debido a que el muestreo se concentró en jornada lectiva diurna (09:33 a 19:51 hrs) durante montaje de proyectos y pruebas de hardware.
+    \item Los \textbf{Días 3 y 4} operaron durante las 24 horas continuas, abarcando las madrugadas (00:00 a 06:00 hrs) y el fin de semana, periodos en los que el laboratorio permaneció cerrado registrando el nivel acústico base del edificio ($\approx 46\text{--}49\text{ dBA}$).
+\end{itemize}
 
 % ==============================================================================
-% 3. FASE 2: ESTADÍSTICA DESCRIPTIVA Y PROYECCIÓN DÍA 6
+% 4. FASE 2: ESTADÍSTICA DESCRIPTIVA Y PROYECCIÓN DÍA 6
 % ==============================================================================
 \section{Fase 2: Estadística Descriptiva y Proyección de Tendencia (Día 6)}
 
 \subsection{Medidas de Tendencia Central y Dispersión Global}
-A partir del total de $N = 236$ observaciones procesadas en RStudio, se obtuvieron los parámetros estadísticos muestrales descritos en el cuadro \ref{tab:descriptiva}.
+A partir del análisis computado en RStudio sobre las $N = 236$ observaciones válidas, se obtuvieron los parámetros estadísticos consolidados en el cuadro \ref{tab:descriptiva}.
 
 \begin{table}[H]
 \centering
-\caption{Estadísticos descriptivos del nivel de ruido en el laboratorio ($N=236$).}
+\caption{Parámetros estadísticos descriptivos del nivel sonoro en el laboratorio ($N=236$).}
 \label{tab:descriptiva}
 \vspace{0.2cm}
 \begin{tabular}{l r r}
 \toprule
-\textbf{Parámetro Estadístico} & \textbf{Escala Acústica ($\text{dBA}$)} & \textbf{Escala Sensor ($\text{dBFS}$)} \\
+\textbf{Parámetro Estadístico} & \textbf{Nivel Acústico ($\text{dBA}$)} & \textbf{Sensor Digital ($\text{dBFS}$)} \\
 \midrule
 Media Aritmética ($\bar{x}$) & $56.03\text{ dBA}$ & $-48.97\text{ dB}$ \\
 Mediana ($Me$) & $55.28\text{ dBA}$ & $-49.72\text{ dB}$ \\
@@ -148,19 +284,23 @@ Desviación Estándar ($s$) & $7.42\text{ dBA}$ & $7.42\text{ dB}$ \\
 Coeficiente de Variación ($CV$) & $13.25\%$ & -- \\
 Rango Total $[\text{Mín}, \text{Máx}]$ & $[45.00, 74.72]\text{ dBA}$ & $[-60.00, -30.28]\text{ dB}$ \\
 Rango Intercuartílico ($IQR = Q_3 - Q_1$) & $11.10\text{ dBA}$ & $11.10\text{ dB}$ \\
+Primer Cuartil ($Q_1$) & $50.07\text{ dBA}$ & $-54.93\text{ dB}$ \\
+Tercer Cuartil ($Q_3$) & $61.17\text{ dBA}$ & $-43.83\text{ dB}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+La proximidad entre la media ($56.03\text{ dBA}$) y la mediana ($55.28\text{ dBA}$), sumada al coeficiente de variación de $13.25\%$, demuestra que el comportamiento del laboratorio exhibe estabilidad y variabilidad moderada, con una distribución unimodal sesgada levemente hacia la derecha debido a los picos diurnos de actividad (figura \ref{fig:distribucion}).
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{graficas/01_distribucion_y_boxplot.png}
-\caption{Izquierda: Histograma y marcas de tendencia central frente al umbral normativo ($65\text{ dBA}$). Derecha: Diagramas de caja y bigotes por día de monitoreo.}
+\caption{Histograma de frecuencias relativas y diagramas de caja y bigotes por día frente al umbral normativo ($65.0\text{ dBA}$).}
 \label{fig:distribucion}
 \end{figure}
 
 \subsection{Análisis de Tendencia Horaria y Proyección para el Día 6 (Lunes)}
-Conforme a la instrucción del proyecto, se aisló una franja horaria homogénea compartida por los 4 días. La ventana matutina de las \textbf{09:30 hrs} (09:23 a 09:35 hrs local) cumple con la condición de actividad en todas las jornadas registradas:
+Conforme a la instrucción del proyecto, se seleccionó una franja horaria homogénea compartida por los cuatro días de monitoreo. Dado que el Día 1 inició a las 09:33 hrs y el Día 4 concluyó a las 11:13 hrs, la franja matutina de las \textbf{09:30 hrs} (09:23 a 09:35 hrs UTC-6) representa el punto común de actividad académica en las cuatro jornadas.
 
 \begin{table}[H]
 \centering
@@ -178,15 +318,14 @@ Supera Umbral ($\ge 65\text{ dBA}$) & Sí (Exceso) & No & No & No \\
 \end{tabular}
 \end{table}
 
-Se ajustó un modelo de regresión lineal simple donde la variable independiente es el día ordinal ($x \in \{1, 2, 3, 4\}$) y la variable dependiente es el nivel sonoro en decibeles ($y$):
+Ajustando un modelo de regresión lineal simple donde $x \in \{1, 2, 3, 4\}$ es el día ordinal y $y$ el nivel sonoro en dBA:
 \begin{equation}
     \hat{y} = \beta_0 + \beta_1 \cdot \text{Día} \quad \Longrightarrow \quad \hat{y} = 74.13 - 5.91 \cdot \text{Día}
 \end{equation}
 
-\noindent\textbf{Métricas del Modelo de Regresión:}
+\noindent\textbf{Resultados de la Regresión y Proyección:}
 \begin{itemize}
-    \item \textbf{Pendiente ($\beta_1$):} $-5.914\text{ dBA/día}$. Refleja el descenso desde el pico de montaje inicial hacia los días normales de operación.
-    \item \textbf{Coeficiente de Determinación ($R^2$):} $0.6410$. El modelo explica el $64.10\%$ de la variabilidad observada en dicha franja.
+    \item \textbf{Pendiente ($\beta_1$):} $-5.914\text{ dBA/día}$ ($R^2 = 0.6410$, explicando el $64.10\%$ de la variabilidad observada en la franja).
     \item \textbf{Proyección Puntual para el Día 6 (Lunes, $x = 6$):}
     \begin{equation}
         \hat{y}_{\text{Día 6}} = 74.125 - 5.914(6) = \mathbf{38.64\text{ dBA}}
@@ -197,127 +336,131 @@ Se ajustó un modelo de regresión lineal simple donde la variable independiente
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.75\textwidth]{graficas/02_tendencia_dia6.png}
-\caption{Recta de tendencia lineal, lecturas observadas y valor proyectado al Día 6 (Lunes) a las 09:30 hrs.}
+\caption{Recta de regresión ajustada, observaciones reales y proyección puntual para el Día 6 (Lunes) a las 09:30 hrs.}
 \label{fig:tendencia}
 \end{figure}
 
-\subsection{Discusión Crítica sobre la Proyección del Día 6}
-\begin{itemize}
-    \item \textbf{Límite Físico Asintótico:} La matemática de la regresión lineal simple extrapola una pendiente negativa indefinida ($38.64\text{ dBA}$). No obstante, físicamente el laboratorio posee un suelo acústico de fondo ($\approx 46\text{--}50\text{ dBA}$) originado por equipos de cómputo, ventilación y ruido exterior.
-    \item \textbf{Comportamiento Estacionario:} Observando los días 2, 3 y 4, la serie converge a una media estable de $54\text{ a }57\text{ dBA}$.
-    \item \textbf{Diagnóstico de Riesgo para el Lunes:} Tanto la estimación puntual proyectada ($38.64\text{ dBA}$) como el valor medio empírico esperado ($55\text{ dBA}$) se sitúan \textbf{significativamente por debajo del umbral de riesgo de $65.0\text{ dBA}$}, pronosticando un inicio de semana favorable y sin saturación sonora a primera hora matutina.
-\end{itemize}
+\subsection{Interpretación Crítica de la Proyección}
+Un análisis estadístico ciego concluiría que el lunes el laboratorio registrará $38.64\text{ dBA}$. Sin embargo, desde la perspectiva de la física acústica e ingeniería:
+\begin{enumerate}
+    \item \textbf{Límite Asintótico de Ruido de Fondo:} El modelo lineal asume decrecimiento sin cota. No obstante, en un entorno universitario cerrado el piso de ruido nunca es inferior a $45\text{--}48\text{ dBA}$ (generado por fuentes de poder, ventiladores y tránsito).
+    \item \textbf{Comportamiento Estacionario:} Tras el pico de instalación del Día 1 ($73.27\text{ dBA}$), la serie temporal se estabilizó en los días 2, 3 y 4 entre $52\text{ y }57\text{ dBA}$.
+    \item \textbf{Dictamen de Riesgo para el Lunes:} Tanto la estimación matemática ($38.64\text{ dBA}$) como la media estacionaria esperada ($\approx 55\text{ dBA}$) se sitúan \textbf{holgadamente por debajo del umbral de riesgo de $65.0\text{ dBA}$}, pronosticando un retorno de semana favorable para el aprendizaje y sin contingencia sonora.
+\end{enumerate}
 
 % ==============================================================================
-% 4. FASE 3: MODELADO PROBABILÍSTICO
+% 5. FASE 3: MODELADO PROBABILÍSTICO
 % ==============================================================================
 \section{Fase 3: Modelado Probabilístico (Bernoulli y Binomial)}
 
 \subsection{Ensayo y Distribución de Bernoulli}
-Se define la variable aleatoria indicadora del estado de exceso acústico en cualquier estación o intervalo temporal:
+Se define la variable aleatoria indicadora de riesgo $Y$ en cualquier intervalo o estación:
 \begin{equation}
     Y = \begin{cases}
-        1 & \text{si el nivel de ruido } \ge 65.0\text{ dBA (Éxito = Exceso sobre la norma)} \\
-        0 & \text{si el nivel de ruido } < 65.0\text{ dBA (Fracaso = Condición aceptable)}
+        1 & \text{si el nivel de ruido } \ge 65.0\text{ dBA (Éxito = Ruido excede la norma)} \\
+        0 & \text{si el nivel de ruido } < 65.0\text{ dBA (Fracaso = Condición acústica conforme)}
     \end{cases}
 \end{equation}
 
-A partir de los 236 registros muestrales, donde se constataron 31 eventos de exceso:
+A partir de los 236 registros con 31 excesos observados:
 \begin{align}
-    \hat{p} &= \frac{31}{236} = \mathbf{0.1314} \quad (13.14\% \text{ probabilidad de exceso}) \\
-    \hat{q} &= 1 - \hat{p} = \mathbf{0.8686} \quad (86.86\% \text{ probabilidad de cumplimiento})
+    \hat{p} &= \frac{31}{236} = \mathbf{0.1314} \quad (13.14\% \text{ de probabilidad de exceso}) \\
+    \hat{q} &= 1 - \hat{p} = \mathbf{0.8686} \quad (86.86\% \text{ de probabilidad de conformidad})
 \end{align}
 \begin{equation}
     E[Y] = p = 0.1314, \qquad \text{Var}(Y) = p \cdot q = 0.1141, \qquad \text{IC}_{95\%}(p) = [0.0883, 0.1745]
 \end{equation}
 
-\subsection{Modelo Binomial para los 3 Cubículos Llenos (n = 3)}
-Asumiendo independencia entre cubículos y ocupación total ($n = 3$), la variable aleatoria $X \sim \text{Binomial}(n=3, p=0.1314)$ modela el número de cubículos que superan simultáneamente la norma:
+\subsection{Distribución Binomial: Escenario de 3 Cubículos Llenos (n = 3)}
+Asumiendo que los tres cubículos del laboratorio operan simultáneamente y con independencia acústica en sus tareas de prototipado, el número de cubículos en exceso $X$ se rige por una distribución binomial $X \sim \text{Binomial}(n=3, p=0.1314)$:
 \begin{equation}
     P(X = k) = \binom{3}{k} (0.1314)^k (0.8686)^{3-k}, \quad k \in \{0, 1, 2, 3\}
 \end{equation}
 
 \begin{table}[H]
 \centering
-\caption{Distribución de probabilidad binomial para los 3 cubículos llenos ($n=3, p=0.1314$).}
+\caption{Función de masa de probabilidad binomial para los 3 cubículos llenos ($n=3, p=0.1314$).}
 \label{tab:binomial}
 \vspace{0.2cm}
 \begin{tabular}{c c c c l}
 \toprule
-\textbf{Cubículos en Exceso ($k$)} & $P(X = k)$ & $P(X \le k)$ & $P(X \ge k)$ & \textbf{Interpretación Práctica} \\
+\textbf{Cubículos Ruidosos ($k$)} & $P(X = k)$ & $P(X \le k)$ & $P(X \ge k)$ & \textbf{Significado en el Laboratorio} \\
 \midrule
-$k = 0$ & $0.6554$ & $0.6554$ & $1.0000$ & Laboratorio en calma total ($65.54\%$) \\
-$k = 1$ & $0.2973$ & $0.9528$ & $0.3446$ & Un solo cubículo ruidoso ($29.73\%$) \\
-$k = 2$ & $0.0450$ & $0.9977$ & $0.0472$ & Mayoría de cubículos ruidosos ($4.50\%$) \\
-$k = 3$ & $0.0023$ & $1.0000$ & $0.0023$ & Saturación acústica total ($0.23\%$) \\
+$k = 0$ & $0.6554$ & $0.6554$ & $1.0000$ & Los 3 cubículos en calma ($65.54\%$) \\
+$k = 1$ & $0.2973$ & $0.9528$ & $0.3446$ & Exactamente 1 cubículo ruidoso ($29.73\%$) \\
+$k = 2$ & $0.0450$ & $0.9977$ & $0.0472$ & 2 cubículos ruidosos simultáneos ($4.50\%$) \\
+$k = 3$ & $0.0023$ & $1.0000$ & $0.0023$ & Saturación total simultánea ($0.23\%$) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Cálculo de Escenarios Críticos:}
+\noindent\textbf{Cálculo de Parámetros de Decisión:}
 \begin{itemize}
-    \item \textbf{Valor Esperado de Cubículos Ruidosos:}
-    \begin{equation}
-        E[X] = n \cdot p = 3 \times 0.1314 = \mathbf{0.394\text{ cubículos}}
-    \end{equation}
-    \item \textbf{Probabilidad de que al menos un cubículo supere el umbral ($P(X \ge 1)$):}
+    \item \textbf{Esperanza de Cubículos en Exceso:} $E[X] = n \cdot p = 3 \times 0.1314 = \mathbf{0.394\text{ cubículos}}$.
+    \item \textbf{Probabilidad de Riesgo Crítico ($P(X \ge 1)$):}
     \begin{equation}
         P(X \ge 1) = 1 - P(X = 0) = 1 - (0.8686)^3 = \mathbf{0.3446} \quad (\mathbf{34.46\%})
     \end{equation}
-    \item \textbf{Probabilidad de Saturación Acústica Simultánea ($P(X = 3)$):}
+    Existe más de un tercio de probabilidad de que al menos una estación genere interferencia hacia las demás cuando todas están ocupadas.
+    \item \textbf{Probabilidad de Saturación Simultánea ($P(X = 3)$):}
     \begin{equation}
         P(X = 3) = (0.1314)^3 = \mathbf{0.0023} \quad (\mathbf{0.23\%})
     \end{equation}
+    La coincidencia de ruido excesivo en los tres cubículos ocurre menos de 1 vez cada 430 intervalos.
 \end{itemize}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{graficas/03_distribucion_binomial.png}
-\caption{Izquierda: Función de probabilidad binomial para los 3 cubículos ($n=3$). Derecha: Extensión a las 7 estaciones del laboratorio completo ($n=7$).}
+\caption{Funciones de probabilidad binomial: 3 cubículos llenos (izquierda) y 7 estaciones totales del laboratorio (derecha).}
 \label{fig:binomial}
 \end{figure}
 
-\subsection{Extensión al Laboratorio Completo (n = 7 Estaciones, ~40 Estudiantes)}
-Al modelar el laboratorio con ocupación completa (3 cubículos + 4 mesas grandes = 7 estaciones de trabajo):
+\subsection{Extensión al Laboratorio Completo (n = 7 Estaciones, 40 Estudiantes)}
+Al expandir el modelo a la capacidad total (3 cubículos + 4 mesas grandes = 7 estaciones de trabajo con 40 personas):
 \begin{equation}
-    E[X_{7}] = 7 \times 0.1314 = \mathbf{0.92\text{ estaciones ruidosas en promedio}}
+    E[X_7] = 7 \times 0.1314 = \mathbf{0.92\text{ estaciones ruidosas en promedio}}
 \end{equation}
-La probabilidad de que más de la mitad del laboratorio exceda la norma ($X \ge 4$) es de solo \textbf{0.75\%}, confirmando que los eventos de ruido excesivo corresponden a picos localizados y no a una saturación crónica incontrolada.
+La probabilidad de que la mayoría de estaciones sobrepasen la norma ($X \ge 4$) es de solo \textbf{0.75\%}, lo que descarta una falla sistémica generalizada del laboratorio y confirma que el problema de ruido se restringe a eventos locales esporádicos.
 
 % ==============================================================================
-% 5. FASE 4: PROPUESTAS DE MITIGACIÓN
+% 6. FASE 4: PROPUESTAS DE MITIGACIÓN
 % ==============================================================================
 \section{Fase 4: Propuestas de Mitigación Acústica}
-Con base en la evidencia de que existe un \textbf{34.46\% de probabilidad de que al menos una estación genere interferencia acústica}, se diseñó un plan de acción en 4 ejes:
+La confirmación de un $34.46\%$ de probabilidad de que al menos una estación supere el umbral justifica la implementación de un plan integral de mitigación en cuatro ejes:
 
 \begin{enumerate}
     \item \textbf{Acondicionamiento Físico de Cubículos (Control de Trayectoria):}
-    Instalar mamparas divisorias fonoabsorbentes entre los 3 cubículos compuestas por espuma de poliuretano de alta densidad o lana mineral con coeficiente de reducción de ruido $\text{NRC} \ge 0.75$. Esto proporcionará una atenuación de \textbf{5 a 7 dBA} en la propagación directa de voz y ruido instrumental.
+    Instalar paneles fonoabsorbentes en las mamparas divisorias entre los 3 cubículos utilizando espuma de poliuretano de alta densidad o lana mineral con coeficiente de reducción de ruido $\text{NRC} \ge 0.75$. Esta medida proporciona una atenuación de entre \textbf{5 y 7 dBA} en la transmisión directa de voz y ruido instrumental.
     
-    \item \textbf{Aislamiento Mecánico y Gabinetes para Herramientas (Control en la Fuente):}
-    Ubicar las herramientas de corte, fresadoras y compresores dentro de gabinetes de policarbonato con juntas de neopreno herméticas. Colocar bases de caucho vulcanizado bajo las impresoras 3D para mitigar ruidos de vibración estructural transmitidos a las mesas.
+    \item \textbf{Cabinas Acústicas y Amortiguamiento para Maquinaria (Control en la Fuente):}
+    Confinar taladros de banco, fresadoras CNC de mesa y compresores dentro de cabinas con sellos herméticos de neopreno y doble acrílico. Instalar alfombrillas antivibratorias de caucho bajo las impresoras 3D para evitar la propagación de ondas mecánicas a través de las mesas.
     
     \item \textbf{Protocolo de Horarios y Zonificación de Tareas (Administrativo):}
-    Establecer una franja de \textit{Concentración y Diseño CAD/Software} (08:00 a 10:00 hrs y 13:00 a 14:00 hrs) con límite estricto de $55\text{ dBA}$, y concentrar el uso de maquinaria pesada en la franja de \textit{Fabricación y Ensamble} (10:00 a 13:00 hrs).
+    Establecer dos franjas operativas diarias:
+    \begin{itemize}
+        \item \textit{Franja de Concentración Intelectual y Software} (08:00 a 10:00 hrs y 13:00 a 14:00 hrs): Límite estricto de $55\text{ dBA}$ para programación, diseño y simulación.
+        \item \textit{Franja de Fabricación y Ensamble} (10:00 a 13:00 hrs y 14:00 a 17:00 hrs): Permitido el empleo de herramientas con protección auditiva si se superan picos de 80 dBA.
+    \end{itemize}
     
     \item \textbf{Semáforo Acústico IoT en Tiempo Real (Conductual):}
-    Aprovechar la infraestructura actual de transmisión del ESP32 para controlar una torre de luces LED visible en el centro del laboratorio:
+    Aprovechar la infraestructura actual del ESP32 para controlar una torre de luces LED visible desde cualquier punto del laboratorio:
     \begin{itemize}
-        \item \textbf{Verde ($< 60\text{ dBA}$):} Condición óptima.
-        \item \textbf{Amarillo ($60\text{--}64.9\text{ dBA}$):} Advertencia de aproximación al umbral.
-        \item \textbf{Rojo ($\ge 65.0\text{ dBA}$):} Alerta de exceso sonoro, permitiendo que los estudiantes modulen su volumen de voz de manera autónoma.
+        \item \textbf{Verde ($< 60\text{ dBA}$):} Nivel óptimo de trabajo colaborativo.
+        \item \textbf{Amarillo ($60.0\text{--}64.9\text{ dBA}$):} Alerta preventiva de aproximación al límite.
+        \item \textbf{Rojo ($\ge 65.0\text{ dBA}$):} Alerta de exceso que activa la autorregulación voluntaria de los estudiantes antes de causar molestia.
     \end{itemize}
 \end{enumerate}
 
 % ==============================================================================
-% 6. CONCLUSIONES
+% 7. CONCLUSIONES
 % ==============================================================================
-\section{Conclusiones y Resumen de Entregables}
+\section{Conclusiones}
 \begin{enumerate}
-    \item El monitoreo IoT con ESP32 y Supabase permitió compilar una base de datos limpia de 236 registros diurnos y nocturnos procesada con rigor en RStudio.
-    \item El nivel sonoro global ($\bar{x} = 56.03\text{ dBA}$, $Me = 55.28\text{ dBA}$) se mantiene dentro de los límites de habitabilidad universitaria, presentando excesos únicamente en el $13.14\%$ del tiempo.
-    \item La proyección horaria para el Día 6 a las 09:30 hrs ($\hat{y} = 38.64\text{ dBA}$, convergente a $55\text{ dBA}$) descarta riesgo de saturación para el inicio de semana.
-    \item El modelo binomial demostró que cuando los 3 cubículos están llenos, la probabilidad de que al menos uno sobrepase el umbral es del $34.46\%$, validando la necesidad de implementar paneles divisorios y el semáforo acústico IoT propuesto.
+    \item Se implementó exitosamente una solución IoT integral (ESP32 + INMP441 + WebSockets + Supabase) que permitió recopilar 236 registros diurnos y nocturnos con conversión de zona horaria a UTC-6 y calibración física rigurosa a decibeles acústicos ($\text{dBA}$).
+    \item El nivel sonoro global del Laboratorio de Prototipos presentó una media de $56.03\text{ dBA}$ y una mediana de $55.28\text{ dBA}$, cumpliendo los estándares de habitabilidad para talleres universitarios durante el $86.86\%$ del tiempo.
+    \item El análisis de tendencia lineal a las 09:30 hrs proyecta para el Día 6 (Lunes) un valor de $38.64\text{ dBA}$ (estabilizado físicamente en $\approx 55\text{ dBA}$), garantizando condiciones aptas y sin riesgo de saturación para el inicio de semana.
+    \item El modelado probabilístico binomial evidenció que ante ocupación total de los 3 cubículos, existe un $34.46\%$ de probabilidad de que al menos uno exceda el umbral normativo, respaldando con evidencia científica la instalación de mamparas absorbentes y el semáforo acústico IoT propuesto.
 \end{enumerate}
 
 \end{document}
