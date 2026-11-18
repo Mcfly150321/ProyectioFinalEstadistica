@@ -100,7 +100,93 @@ if ("dia_numero" %in% names(df) && "hora_decimal" %in% names(df)) {
   pred_dia6 <- media
 }
 
-# 6. Datos del Último Registro Acumulado
+# 6. Top Horas Más Ruidosas (Por Rango Horario)
+if ("hora_texto" %in% names(df)) {
+  df[["hora_entera"]] <- as.integer(substr(df[["hora_texto"]], 1, 2))
+} else {
+  df[["hora_entera"]] <- 12
+}
+
+horas_split <- split(df, df[["hora_entera"]])
+res_horas <- lapply(horas_split, function(sub) {
+  dba_h <- as.numeric(sub[["decibeles_dba"]])
+  dba_h <- dba_h[!is.na(dba_h)]
+  if (length(dba_h) == 0) return(NULL)
+  h <- sub[["hora_entera"]][1]
+  rango <- sprintf("%02d:00 - %02d:00", h, (h + 1) %% 24)
+  data.frame(
+    hora = h,
+    rango = rango,
+    media_dba = round(mean(dba_h), 2),
+    max_dba = round(max(dba_h), 2),
+    muestras = length(dba_h),
+    excesos = sum(dba_h >= umbral),
+    pct_excesos = round((sum(dba_h >= umbral) / length(dba_h)) * 100, 1),
+    stringsAsFactors = FALSE
+  )
+})
+res_horas <- res_horas[!sapply(res_horas, is.null)]
+df_horas <- do.call(rbind, res_horas)
+df_horas <- df_horas[order(-df_horas[["media_dba"]]), ]
+
+horas_items <- apply(df_horas, 1, function(row) {
+  sprintf('{"hora": %d, "rango": "%s", "media_dba": %.2f, "max_dba": %.2f, "muestras": %d, "excesos": %d, "pct_excesos": %.1f}',
+    as.integer(row[["hora"]]),
+    row[["rango"]],
+    as.numeric(row[["media_dba"]]),
+    as.numeric(row[["max_dba"]]),
+    as.integer(row[["muestras"]]),
+    as.integer(row[["excesos"]]),
+    as.numeric(row[["pct_excesos"]])
+  )
+})
+top_horas_json <- paste0("[\n    ", paste(horas_items, collapse = ",\n    "), "\n  ]")
+
+# 7. Top Días Más Ruidosos (Agrupación por Jornada)
+if ("dia_fecha" %in% names(df)) {
+  dias_split <- split(df, df[["dia_fecha"]])
+} else {
+  dias_split <- list(df)
+}
+
+res_dias <- lapply(dias_split, function(sub) {
+  dba_d <- as.numeric(sub[["decibeles_dba"]])
+  dba_d <- dba_d[!is.na(dba_d)]
+  if (length(dba_d) == 0) return(NULL)
+  d_num <- ifelse("dia_numero" %in% names(sub), as.integer(sub[["dia_numero"]][1]), 1)
+  d_nom <- ifelse("dia_nombre" %in% names(sub), as.character(sub[["dia_nombre"]][1]), "Jornada 1")
+  d_fec <- ifelse("dia_fecha" %in% names(sub), as.character(sub[["dia_fecha"]][1]), "")
+  data.frame(
+    dia_numero = d_num,
+    dia_nombre = d_nom,
+    dia_fecha = d_fec,
+    media_dba = round(mean(dba_d), 2),
+    max_dba = round(max(dba_d), 2),
+    muestras = length(dba_d),
+    excesos = sum(dba_d >= umbral),
+    pct_excesos = round((sum(dba_d >= umbral) / length(dba_d)) * 100, 1),
+    stringsAsFactors = FALSE
+  )
+})
+res_dias <- res_dias[!sapply(res_dias, is.null)]
+df_dias <- do.call(rbind, res_dias)
+df_dias <- df_dias[order(-df_dias[["media_dba"]]), ]
+
+dias_items <- apply(df_dias, 1, function(row) {
+  sprintf('{"dia_numero": %d, "dia_nombre": "%s", "dia_fecha": "%s", "media_dba": %.2f, "max_dba": %.2f, "muestras": %d, "excesos": %d, "pct_excesos": %.1f}',
+    as.integer(row[["dia_numero"]]),
+    row[["dia_nombre"]],
+    row[["dia_fecha"]],
+    as.numeric(row[["media_dba"]]),
+    as.numeric(row[["max_dba"]]),
+    as.integer(row[["muestras"]]),
+    as.integer(row[["excesos"]]),
+    as.numeric(row[["pct_excesos"]])
+  )
+})
+top_dias_json <- paste0("[\n    ", paste(dias_items, collapse = ",\n    "), "\n  ]")
+
+# 8. Datos del Último Registro Acumulado
 ultimo_reg <- tail(df, 1)
 ultimo_id <- ifelse("id" %in% names(ultimo_reg), as.numeric(ultimo_reg[["id"]]), n)
 ultimo_fecha <- ifelse("dia_fecha" %in% names(ultimo_reg), as.character(ultimo_reg[["dia_fecha"]]), "")
@@ -161,7 +247,9 @@ json_str <- sprintf(
     "pendiente_b1": %.2f,
     "r2": %.4f,
     "proyeccion_dia6": %.2f
-  }
+  },
+  "top_horas": %s,
+  "top_dias": %s
 }',
   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
   n,
@@ -198,7 +286,9 @@ json_str <- sprintf(
   b0,
   b1,
   r2,
-  pred_dia6
+  pred_dia6,
+  top_horas_json,
+  top_dias_json
 )
 
 cat(json_str)

@@ -431,16 +431,45 @@ if not os.path.isdir(FRONT_DIR):
     FRONT_DIR = os.path.join(BACKEND_DIR, "Front")
 
 
+async def cron_actualizacion_cada_hora():
+    """
+    Tarea en segundo plano que vigila el reloj del sistema.
+    Cuando el reloj alcanza las :00:00 (en punto), re-ejecuta
+    inmediatamente la simulacion en R y difunde las estadisticas
+    actualizadas (incluyendo top horas y top dias) a todos los clientes web conectados.
+    """
+    while True:
+        try:
+            ahora = datetime.now()
+            segundos_restantes = 3600 - (ahora.minute * 60 + ahora.second)
+            if segundos_restantes <= 0:
+                segundos_restantes = 3600
+            prox_hora = (ahora + timedelta(seconds=segundos_restantes)).strftime("%H:00:00")
+            print(f"\033[1;34m[CRON HORARIO] Proxima actualizacion en punto a las {prox_hora} (en {segundos_restantes}s)\033[0m")
+            await asyncio.sleep(segundos_restantes)
+
+            print(f"\n\033[1;35m[CRON HORARIO] ¡Hora en punto alcanzada ({datetime.now().strftime('%H:%M:%S')})! Recalculando R y difundiendo rankings...\033[0m")
+            stats = ejecutar_simulacion_r()
+            await broadcast_live_stats(stats)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[CRON ERROR] {e}")
+            await asyncio.sleep(60)
+
+
 @app.on_event("startup")
 async def startup_event():
     """
     Captura el bucle principal asyncio y realiza el primer computo estadistico en R.
+    Inicia la tarea cron que actualiza las estadisticas cada hora en punto.
     """
     global server_loop, latest_live_stats
     server_loop = asyncio.get_running_loop()
     inicializar_dataset_live()
     print("\033[1;34m[STARTUP] Iniciando calculo base con el motor R...\033[0m")
     latest_live_stats = ejecutar_simulacion_r()
+    asyncio.create_task(cron_actualizacion_cada_hora())
 
 
 @app.middleware("http")

@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "timestamp_computo": "2026-11-18 13:32:30",
+  "timestamp_computo": "2026-11-18 13:41:15",
   "n_total": 236,
   "ultimo_registro": {
     "id": 240,
@@ -49,5 +49,37 @@
     "pendiente_b1": -4.87,
     "r2": 0.5122,
     "proyeccion_dia6": 44.22
-  }
+  },
+  "top_horas": [
+    {"hora": 18, "rango": "18:00 - 19:00", "media_dba": 65.33, "max_dba": 73.79, "muestras": 12, "excesos": 7, "pct_excesos": 58.3},
+    {"hora": 17, "rango": "17:00 - 18:00", "media_dba": 63.27, "max_dba": 70.89, "muestras": 12, "excesos": 4, "pct_excesos": 33.3},
+    {"hora": 12, "rango": "12:00 - 13:00", "media_dba": 62.34, "max_dba": 69.49, "muestras": 12, "excesos": 2, "pct_excesos": 16.7},
+    {"hora": 16, "rango": "16:00 - 17:00", "media_dba": 61.08, "max_dba": 70.66, "muestras": 12, "excesos": 3, "pct_excesos": 25.0},
+    {"hora": 11, "rango": "11:00 - 12:00", "media_dba": 61.05, "max_dba": 71.44, "muestras": 12, "excesos": 1, "pct_excesos": 8.3},
+    {"hora": 19, "rango": "19:00 - 20:00", "media_dba": 60.91, "max_dba": 70.78, "muestras": 12, "excesos": 3, "pct_excesos": 25.0},
+    {"hora": 10, "rango": "10:00 - 11:00", "media_dba": 60.77, "max_dba": 74.72, "muestras": 12, "excesos": 4, "pct_excesos": 33.3},
+    {"hora": 13, "rango": "13:00 - 14:00", "media_dba": 60.61, "max_dba": 70.37, "muestras": 12, "excesos": 4, "pct_excesos": 33.3},
+    {"hora": 9, "rango": "09:00 - 10:00", "media_dba": 59.14, "max_dba": 73.50, "muestras": 13, "excesos": 3, "pct_excesos": 23.1},
+    {"hora": 21, "rango": "21:00 - 22:00", "media_dba": 55.96, "max_dba": 62.12, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 14, "rango": "14:00 - 15:00", "media_dba": 55.26, "max_dba": 63.98, "muestras": 12, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 15, "rango": "15:00 - 16:00", "media_dba": 54.81, "max_dba": 63.09, "muestras": 12, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 20, "rango": "20:00 - 21:00", "media_dba": 54.74, "max_dba": 61.43, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 8, "rango": "08:00 - 09:00", "media_dba": 53.41, "max_dba": 59.75, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 7, "rango": "07:00 - 08:00", "media_dba": 52.45, "max_dba": 56.85, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 6, "rango": "06:00 - 07:00", "media_dba": 49.35, "max_dba": 52.58, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 5, "rango": "05:00 - 06:00", "media_dba": 49.04, "max_dba": 52.21, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 4, "rango": "04:00 - 05:00", "media_dba": 48.89, "max_dba": 51.50, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 2, "rango": "02:00 - 03:00", "media_dba": 48.83, "max_dba": 50.82, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 0, "rango": "00:00 - 01:00", "media_dba": 48.69, "max_dba": 50.03, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 3, "rango": "03:00 - 04:00", "media_dba": 48.60, "max_dba": 50.64, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 1, "rango": "01:00 - 02:00", "media_dba": 48.44, "max_dba": 50.34, "muestras": 7, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 22, "rango": "22:00 - 23:00", "media_dba": 48.27, "max_dba": 50.37, "muestras": 8, "excesos": 0, "pct_excesos": 0.0},
+    {"hora": 23, "rango": "23:00 - 00:00", "media_dba": 47.97, "max_dba": 50.10, "muestras": 8, "excesos": 0, "pct_excesos": 0.0}
+  ],
+  "top_dias": [
+    {"dia_numero": 1, "dia_nombre": "Día 1 (2026-11-03)", "dia_fecha": "2026-11-03", "media_dba": 63.88, "max_dba": 73.27, "muestras": 36, "excesos": 22, "pct_excesos": 61.1},
+    {"dia_numero": 2, "dia_nombre": "Día 2 (2026-11-04)", "dia_fecha": "2026-11-04", "media_dba": 58.79, "max_dba": 74.72, "muestras": 62, "excesos": 5, "pct_excesos": 8.1},
+    {"dia_numero": 3, "dia_nombre": "Día 3 (2026-11-05)", "dia_fecha": "2026-11-05", "media_dba": 54.46, "max_dba": 73.79, "muestras": 96, "excesos": 4, "pct_excesos": 4.2},
+    {"dia_numero": 4, "dia_nombre": "Día 4 (2026-11-06)", "dia_fecha": "2026-11-06", "media_dba": 48.82, "max_dba": 57.85, "muestras": 42, "excesos": 0, "pct_excesos": 0.0}
+  ]
 }
