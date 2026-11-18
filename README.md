@@ -100,27 +100,18 @@ El micrófono digital INMP441 se comunica directamente con el ESP32 mediante el 
 
 ## 🏗️ Arquitectura de Software y Pipeline de Datos
 
-```text
- [ESP32 + INMP441]
-        │  Muestreo I2S (16 kHz, PCM 16-bit)
-        ▼  Streaming WebSockets (Túnel Ngrok / Puerto 5000)
- [Servidor Python FastAPI]
-        │  Cálculo RMS, Decibeles promedio y Picos por ventana
-        ▼  Persistencia cada 15 min (SQL INSERT)
- [Supabase PostgreSQL (AWS)]
-        │  Extracción con extraer_datos.py
-        │  Conversión UTC-0 ──> UTC-6 (Guatemala) + Calibración dBA
-        ▼
- [datos_limpios.csv] (236 registros reales)
-        │
-        ├──> [01_analisis_normativa.R] ──────> Auditoría frente a norma (65 dBA)
-        ├──> [02_descriptiva_tendencia.R] ───> Estadísticos, Boxplots y Regresión Día 6
-        ├──> [03_modelo_binomial.R] ─────────> Modelos de Bernoulli y Binomial (n=3)
-        └──> [04_reporte_ejecutivo.R] ───────> Matriz consolidada de resultados
-                      │
-                      ▼
-        [LaTeX: reporteresultados.tex] ───> [reporteresultados.pdf] (11 págs)
-```
+<p align="center">
+  <img src="reportes/graficas/diagrama_arquitectura.png" alt="Arquitectura Integral del Pipeline de Datos y Despliegue IoT" width="95%">
+</p>
+
+El sistema implementa un flujo automatizado de extremo a extremo compuesto por seis módulos interconectados:
+
+1. **Nodo Sensor (IoT):** Muestreo continuo a $16\,\text{kHz}$ PCM (24 bits) en el ESP32 con micrófono INMP441, transmitiendo tramas de 1024 muestras vía WebSocket.
+2. **Túnel Seguro Ingress (Ngrok):** Enrutamiento público WAN seguro (`luxury-roster-uncouth...`) que traspasa el firewall y NAT institucional de la universidad sin requerir IP pública fija.
+3. **Servidor Backend (FastAPI + Uvicorn en Ubuntu):** Ingesta en tiempo real (`/ws/esp`), cálculo logarítmico de potencia RMS ($20\log_{10}(\text{RMS})$), filtrado de ruido base ($<-59.5\,\text{dB}$), vúmetro ANSI en terminal y ventanas acumulativas de 15 minutos.
+4. **Dashboard Web Live (Frontend):** Visualización en tiempo real con ApexCharts, vúmetro de alerta semafórica (verde, amarillo y rojo), osciloscopio y streaming acústico continuo.
+5. **Base de Datos en la Nube (Supabase PostgreSQL):** Persistencia transaccional de métricas agregadas cada 15 minutos en AWS Cloud vía pooler SSL (puerto 6543) sobre la tabla `Registros`.
+6. **Entorno Estadístico (RStudio):** Extracción automatizada ETL (`extraer_datos.py`), normalización temporal UTC-0 a UTC-6 (Guatemala), calibración física a dBA ($\text{dBA} = \text{dBFS} + 105$), pruebas normativas, inferencia descriptiva, regresión y modelado binomial.
 
 ---
 
@@ -164,11 +155,18 @@ ProyectoFinal/
 │       ├── 04_reporte_ejecutivo.R              <- Resumen consolidado para consola
 │       └── propuestas_mitigacion.md            <- Propuestas técnicas de mitigación acústica
 │
-└── reportes/                                   <- Memoria técnica formal en LaTeX y PDF
+└── reportes/                                   <- Memorias técnicas formales en LaTeX y PDF
     ├── meso.png                                <- Logo institucional de la Universidad Mesoamericana
-    ├── reporteresultados.tex                   <- Fuente formal en LaTeX con portada oficial
-    ├── reporteresultados.pdf                   <- Documento técnico final compilado (11 páginas)
-    └── graficas/                               <- Figuras incrustadas en el reporte PDF
+    ├── reporte_proyecto_final.tex              <- Fuente LaTeX del Reporte Integral y Manual Técnico (9 capítulos)
+    ├── reporte_proyecto_final.pdf              <- Documento técnico maestro compilado (17 páginas)
+    ├── reporteresultados.tex                   <- Fuente LaTeX del Reporte Ejecutivo de Resultados
+    ├── reporteresultados.pdf                   <- Reporte técnico previo compilado (11 páginas)
+    └── graficas/                               <- Diagramas y gráficas analíticas de alta resolución
+        ├── diagrama_circuito.png               <- Esquemático electrónico del nodo sensor (ESP32 + INMP441)
+        ├── diagrama_arquitectura.png           <- Arquitectura del pipeline de datos y despliegue IoT
+        ├── 01_distribucion_y_boxplot.png       <- Histograma y diagrama de caja de los 4 días
+        ├── 02_tendencia_dia6.png               <- Regresión lineal y proyección a las 09:30 hrs
+        └── 03_distribucion_binomial.png        <- Funciones de masa de probabilidad binomial
 ```
 
 ---
@@ -229,11 +227,31 @@ source("analisisestadistico/fase3_probabilidad_binomial/03_modelo_probabilistico
 source("analisisestadistico/fase4_reporte_mitigacion/04_reporte_ejecutivo.R")
 ```
 
-### 2. Compilación del Reporte Técnico en LaTeX
-Para recompilar el documento PDF oficial desde la terminal:
+### 2. Compilación de los Reportes Técnicos en LaTeX
+Para recompilar los documentos PDF oficiales desde la terminal:
+
 ```bash
 cd reportes
+
+# 1. Reporte Integral de Proyecto y Manual Técnico (17 páginas, 9 capítulos):
+pdflatex -interaction=nonstopmode reporte_proyecto_final.tex
+pdflatex -interaction=nonstopmode reporte_proyecto_final.tex
+
+# 2. Reporte Ejecutivo de Resultados (11 páginas):
 pdflatex -interaction=nonstopmode reporteresultados.tex
 pdflatex -interaction=nonstopmode reporteresultados.tex
 ```
-El documento generado [reporteresultados.pdf](reportes/reporteresultados.pdf) contendrá la portada institucional, tablas y gráficos consolidados.
+
+Los documentos generados ([reporte_proyecto_final.pdf](reportes/reporte_proyecto_final.pdf) y [reporteresultados.pdf](reportes/reporteresultados.pdf)) contienen la portada institucional formal, listas de figuras, tablas consolidadas y las conclusiones del equipo.
+
+---
+
+## 📑 Galería de Gráficas Analíticas del Reporte
+
+| Distribución Acústica y Boxplot (Fase 2) | Proyección de Tendencia Día 6 (Fase 2) |
+| :---: | :---: |
+| ![Distribución y Boxplot](reportes/graficas/01_distribucion_y_boxplot.png) | ![Tendencia Día 6](reportes/graficas/02_tendencia_dia6.png) |
+
+| Modelo de Probabilidad Binomial (Fase 3) |
+| :---: |
+| ![Distribución Binomial](reportes/graficas/03_distribucion_binomial.png) |

@@ -1,134 +1,176 @@
-\documentclass[border=12pt]{standalone}
+\documentclass[border=25pt]{standalone}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
+\usepackage{xcolor}
 \usepackage{tikz}
+\usepackage{enumitem}
 \usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, backgrounds, fit}
 
+% Definición de Colores Corporativos
 \definecolor{cloudblue}{RGB}{24, 144, 255}
 \definecolor{servergray}{RGB}{45, 52, 54}
 \definecolor{espgreen}{RGB}{39, 174, 96}
-\definecolor{supagreen}{RGB}{62, 207, 142}
+\definecolor{supagreen}{RGB}{30, 155, 105}
 \definecolor{ngrokblue}{RGB}{31, 80, 163}
 \definecolor{rblue}{RGB}{39, 109, 195}
-\definecolor{cardbg}{RGB}{248, 250, 252}
 
 \begin{document}
-\begin{tikzpicture}[font=\sffamily, scale=1.0, >=Stealth]
+\begin{tikzpicture}[font=\sffamily, >=Stealth]
 
     % =========================================================================
-    % TÍTULO DEL DIAGRAMA
+    % TÍTULO Y SUBTÍTULO SUPERIOR
     % =========================================================================
-    \node[anchor=west, font=\bfseries\Large, text=servergray] at (-0.5, 9.8) {Arquitectura Integral del Pipeline de Datos y Despliegue IoT};
-    \node[anchor=west, font=\small, text=gray!80!black] at (-0.5, 9.3) {Flujo de Transmisión en Tiempo Real, Servidor FastAPI, Base de Datos en la Nube y Procesamiento en RStudio};
+    \node[anchor=west, font=\bfseries\huge, text=servergray] at (1.0, 20.6) {Arquitectura Integral del Pipeline de Datos y Despliegue IoT};
+    \node[anchor=west, font=\large, text=gray!80!black] at (1.0, 19.8) {Monitoreo Acústico en Vivo: Desde el Muestreo Físico hasta la Inferencia Estadística en RStudio};
 
     % =========================================================================
-    % BLOQUE 1: NODO IoT (ESP32 + INMP441)
+    % FILA SUPERIOR: CAPTURA, EXPOSICIÓN Y BACKEND (y = 14.5)
     % =========================================================================
-    \node[draw=espgreen!80!black, fill=espgreen!10, thick, rounded corners=6pt, minimum width=4.0cm, minimum height=3.6cm, align=center] (ESP) at (1.5, 6.0) {};
-    \node[font=\bfseries\normalsize, text=espgreen!90!black, anchor=north] at (1.5, 7.6) {1. NODO SENSOR (IoT)};
-    \node[font=\small\bfseries, text=black] at (1.5, 6.8) {ESP32 DevKit v1};
-    \node[font=\footnotesize, text=gray!80!black, align=center] at (1.5, 5.8) {
-        • Micrófono I2S INMP441\\
-        • Muestreo $16\text{ kHz}$ PCM\\
-        • Tramas de 1024 muestras\\
-        • Wi-Fi 802.11 b/g/n
-    };
-    \node[fill=espgreen, text=white, font=\scriptsize\bfseries, rounded corners=2pt, inner sep=3pt] at (1.5, 4.5) {Laboratorio Prototipos};
 
-    % =========================================================================
-    % BLOQUE 2: TÚNEL NGROK (EXPOSICIÓN GLOBAL)
-    % =========================================================================
-    \node[draw=ngrokblue!80!black, fill=ngrokblue!10, thick, rounded corners=6pt, minimum width=3.4cm, minimum height=2.8cm, align=center] (NGROK) at (6.5, 6.0) {};
-    \node[font=\bfseries\normalsize, text=ngrokblue, anchor=north] at (6.5, 7.2) {2. TÚNEL SEGURO};
-    \node[font=\small\bfseries, text=black] at (6.5, 6.4) {Ngrok Ingress};
-    \node[font=\tiny, text=gray!80!black, align=center] at (6.5, 5.5) {
-        Dominio Estático:\\
-        \texttt{luxury-roster-uncouth...}\\
-        Puerto 80/443 $\rightarrow$ 5000\\
-        Traspasa NAT de UMES
+    % 1. NODO SENSOR (ESP32 + INMP441)
+    \node[draw=espgreen!85!black, fill=espgreen!6, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (ESP) at (5.0, 14.5) {
+        {\centering \textbf{\Large 1. NODO SENSOR (IoT)}\\[3pt]
+        \textbf{\color{espgreen!90!black}\normalsize ESP32 DevKit v1 + INMP441}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{Sensor:} Micrófono digital I2S omnidireccional.
+            \item \textbf{Muestreo:} $16\,\text{kHz}$, cuantización $24\,\text{bits}$ PCM.
+            \item \textbf{Procesamiento:} Tramas continuas de 1024 muestras.
+            \item \textbf{Conectividad:} Wi-Fi 802.11 b/g/n (red UMES).
+            \item \textbf{Protocolo:} Cliente WebSocket directo hacia Ngrok.
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{espgreen!20}{\footnotesize\textbf{\textsf{Ubicación: Laboratorio de Prototipos UMES}}}\par}
     };
 
-    % =========================================================================
-    % BLOQUE 3: SERVIDOR UBUNTU / FASTAPI (NUBE)
-    % =========================================================================
-    \node[draw=servergray, fill=gray!8, thick, rounded corners=6pt, minimum width=5.2cm, minimum height=5.2cm, align=center] (SRV) at (12.2, 5.2) {};
-    \node[font=\bfseries\normalsize, text=servergray, anchor=north] at (12.2, 7.6) {3. SERVIDOR PYTHON BACKEND};
-    \node[font=\small\bfseries, text=black] at (12.2, 7.0) {FastAPI + Uvicorn (0.0.0.0:5000)};
-    \node[font=\footnotesize, text=gray!80!black, align=left] at (12.2, 5.4) {
-        • \textbf{WebSocket Handler:} \texttt{/ws/esp}\\
-        • \textbf{Cálculo de RMS:} $20\log_{10}(\text{RMS})$\\
-        • \textbf{Filtrado:} Descarte cortes $\le -59.5\text{dB}$\\
-        • \textbf{Ventana Acumulativa:} 15 min\\
-        • \textbf{Vúmetro Console:} Barras ANSI\\
-        • \textbf{Auth:} Token ESP y Password Web
+    % 2. TÚNEL SEGURO NGROK
+    \node[draw=ngrokblue!85!black, fill=ngrokblue!6, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (NGROK) at (19.0, 14.5) {
+        {\centering \textbf{\Large 2. TÚNEL INGRESS}\\[3pt]
+        \textbf{\color{ngrokblue}\normalsize Ngrok Secure Cloud Gateway}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{Dominio Público:} \texttt{luxury-roster-uncouth...}
+            \item \textbf{Bypass de Red:} Atraviesa NAT y firewall institucional.
+            \item \textbf{Seguridad:} Encriptación TLS/SSL (WSS/HTTPS).
+            \item \textbf{Reenvío Ingress:} Proxy reverso hacia puerto 5000.
+            \item \textbf{Disponibilidad:} Enlace WAN 24/7 sin IP pública fija.
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{ngrokblue!20}{\footnotesize\textbf{\textsf{Enlace WAN Seguro Punto a Punto}}}\par}
     };
 
-    % =========================================================================
-    % BLOQUE 4: FRONTEND WEB DE MONITOREO
-    % =========================================================================
-    \node[draw=cloudblue!80!black, fill=cloudblue!10, thick, rounded corners=6pt, minimum width=3.8cm, minimum height=2.8cm, align=center] (FRONT) at (12.2, 0.8) {};
-    \node[font=\bfseries\normalsize, text=cloudblue!90!black, anchor=north] at (12.2, 2.0) {4. DASHBOARD WEB};
-    \node[font=\small\bfseries, text=black] at (12.2, 1.4) {Frontend de Monitoreo};
-    \node[font=\tiny, text=gray!80!black, align=center] at (12.2, 0.6) {
-        HTML5 + JS + ApexCharts\\
-        Vúmetro visual dinámico\\
-        Osciloscopio \& Audio Player
-    };
-
-    % =========================================================================
-    % BLOQUE 5: BASE DE DATOS SUPABASE (POSTGRESQL NUBE)
-    % =========================================================================
-    \node[draw=supagreen!80!black, fill=supagreen!10, thick, rounded corners=6pt, minimum width=4.2cm, minimum height=3.6cm, align=center] (SUPA) at (6.5, 0.8) {};
-    \node[font=\bfseries\normalsize, text=supagreen!80!black, anchor=north] at (6.5, 2.4) {5. BASE DE DATOS EN NUBE};
-    \node[font=\small\bfseries, text=black] at (6.5, 1.7) {Supabase (PostgreSQL)};
-    \node[font=\tiny, text=gray!80!black, align=left] at (6.5, 0.7) {
-        • Instancia AWS Pooler (6543/5432)\\
-        • \textbf{Tabla "Registros":}\\
-        \ \ \texttt{id, created\_at, decibeles,}\\
-        \ \ \texttt{picoactual, superaumbral}\\
-        • Inserción cada 15 min
+    % 3. SERVIDOR PYTHON BACKEND (FASTAPI)
+    \node[draw=servergray!90!black, fill=gray!8, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (SRV) at (33.0, 14.5) {
+        {\centering \textbf{\Large 3. SERVIDOR BACKEND}\\[3pt]
+        \textbf{\color{servergray}\normalsize FastAPI + Uvicorn (Ubuntu Server)}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{WebSocket Handler:} Ingesta en endpoint \texttt{/ws/esp}.
+            \item \textbf{Cálculo Acústico:} Potencia RMS $20\log_{10}(\text{RMS})$.
+            \item \textbf{Filtro Desconexión:} Descarte de silencio $\le -59.5\,\text{dB}$.
+            \item \textbf{Agregación Temporal:} Ventanas de 15 minutos.
+            \item \textbf{Vúmetro ANSI:} Barras visuales en consola terminal.
+            \item \textbf{Seguridad:} Validación por Token ESP y contraseñas.
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{gray!25}{\footnotesize\textbf{\textsf{Host Central: 0.0.0.0:5000 en Ubuntu}}}\par}
     };
 
     % =========================================================================
-    % BLOQUE 6: COMPUTACIÓN ESTADÍSTICA (RSTUDIO)
+    % FILA INFERIOR: ANÁLISIS ESTADÍSTICO, BD SUPABASE Y DASHBOARD (y = 3.8)
     % =========================================================================
-    \node[draw=rblue!80!black, fill=rblue!10, thick, rounded corners=6pt, minimum width=4.0cm, minimum height=3.6cm, align=center] (RSTUDIO) at (1.5, 0.8) {};
-    \node[font=\bfseries\normalsize, text=rblue, anchor=north] at (1.5, 2.4) {6. ENTORNO ESTADÍSTICO};
-    \node[font=\small\bfseries, text=black] at (1.5, 1.7) {RStudio / R Scripts};
-    \node[font=\tiny, text=gray!80!black, align=left] at (1.5, 0.7) {
-        • Extracción \& Conversión UTC-6\\
-        • Calibración a $\text{dBA}$\\
-        • Descriptiva: $\bar{x}, Me, Mo, s^2, s$\\
-        • Regresión Lineal (Día 6)\\
-        • Modelo Binomial ($n=3$ cubículos)
+
+    % 6. ENTORNO ESTADÍSTICO RSTUDIO
+    \node[draw=rblue!85!black, fill=rblue!6, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (RSTUDIO) at (5.0, 3.8) {
+        {\centering \textbf{\Large 6. ANÁLISIS ESTADÍSTICO}\\[3pt]
+        \textbf{\color{rblue}\normalsize RStudio \& R Core Engine}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{Pipeline ETL:} \texttt{extraer\_datos.py} con psycopg2.
+            \item \textbf{Normalización:} Conversión UTC-0 a UTC-6 (Guatemala).
+            \item \textbf{Calibración:} Escala de presión $\text{dBA} = \text{dBFS} + 105$.
+            \item \textbf{Auditoría Normativa:} AG 229-2014 (umbral $65.0\,\text{dBA}$).
+            \item \textbf{Descriptiva \& Tendencia:} Regresión lineal (Día 6).
+            \item \textbf{Modelado Binomial:} $n=3$ cubículos, $n=7$ salas.
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{rblue!20}{\footnotesize\textbf{\textsf{Inferencia, Modelado y Toma de Decisiones}}}\par}
+    };
+
+    % 5. BASE DE DATOS SUPABASE
+    \node[draw=supagreen!85!black, fill=supagreen!7, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (SUPA) at (19.0, 3.8) {
+        {\centering \textbf{\Large 5. BASE DE DATOS EN NUBE}\\[3pt]
+        \textbf{\color{supagreen!90!black}\normalsize Supabase Cloud (PostgreSQL 15)}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{Instancia Gestionada:} AWS Cloud (Pooler 6543/5432).
+            \item \textbf{Conexión Segura:} Driver \texttt{psycopg2} con SSL requerido.
+            \item \textbf{Esquema Tabla \texttt{Registros}:}
+            \begin{itemize}[leftmargin=10pt, itemsep=2pt]
+                \item \texttt{id} (Serial primary key)
+                \item \texttt{created\_at} (Timestamp with time zone)
+                \item \texttt{decibeles}, \texttt{picoactual} (Float)
+                \item \texttt{superaumbral} (Boolean)
+            \end{itemize}
+            \item \textbf{Persistencia Periódica:} Inserción cada 15 min (236 filas).
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{supagreen!20}{\footnotesize\textbf{\textsf{Almacenamiento Centralizado Inmutable}}}\par}
+    };
+
+    % 4. DASHBOARD WEB LIVE
+    \node[draw=cloudblue!85!black, fill=cloudblue!6, line width=1.5pt, rounded corners=12pt,
+          text width=7.6cm, inner sep=15pt, align=left] (DASH) at (33.0, 3.8) {
+        {\centering \textbf{\Large 4. DASHBOARD WEB LIVE}\\[3pt]
+        \textbf{\color{cloudblue!90!black}\normalsize Interfaz Web de Monitoreo}\par\vspace{6pt}\hrule height 0.8pt\vspace{8pt}}
+        \begin{itemize}[leftmargin=14pt, itemsep=4pt, parsep=0pt]
+            \item \textbf{Stack Frontend:} HTML5 semántico, CSS3, JavaScript.
+            \item \textbf{Gráficas Dinámicas:} Telemetría en tiempo real con ApexCharts.
+            \item \textbf{Vúmetro Reactivo:} Alerta semafórica (Verde/Amarillo/Rojo).
+            \item \textbf{Osciloscopio:} Visualización de onda acústica en vivo.
+            \item \textbf{Receptor WebSocket:} Sincronización continua sin refresco.
+        \end{itemize}
+        \vspace{8pt}
+        {\centering \colorbox{cloudblue!20}{\footnotesize\textbf{\textsf{Visualización y Alertas para Usuarios}}}\par}
     };
 
     % =========================================================================
-    % LÍNEAS DE CONEXIÓN Y FLUJO DE DATOS
+    % FLECHAS DE CONEXIÓN Y FLUJO DE DATOS (ESPACIOS AMPLIOS Y SIN COLISIÓN)
     % =========================================================================
-    % ESP32 -> NGROK
-    \draw[->, very thick, espgreen!80!black] (ESP.east) -- (NGROK.west)
-        node[midway, above, font=\scriptsize\bfseries] {Wi-Fi WebSocket}
-        node[midway, below, font=\tiny] {JSON + PCM Binario};
 
-    % NGROK -> FASTAPI
-    \draw[->, very thick, ngrokblue] (NGROK.east) -- ($(SRV.west)+(0, 0.8)$)
-        node[midway, above, font=\scriptsize\bfseries] {Proxy Ingress}
-        node[midway, below, font=\tiny] {Localhost:5000};
+    % 1 -> 2: ESP32 a Ngrok (Gap de 6.4 cm)
+    \draw[->, line width=2.4pt, espgreen!85!black] (ESP.east) -- (NGROK.west)
+        node[midway, above=5pt, font=\small\bfseries, text=espgreen!90!black] {Wi-Fi WebSocket}
+        node[midway, below=5pt, font=\footnotesize, text=gray!80!black] {JSON + Audio PCM $16\,\text{kHz}$};
 
-    % FASTAPI <-> FRONTEND
-    \draw[<->, very thick, cloudblue] (SRV.south) -- (FRONT.north)
-        node[midway, right, font=\tiny] {Broadcast WebSocket / HTTP};
+    % 2 -> 3: Ngrok a FastAPI (Gap de 6.4 cm)
+    \draw[->, line width=2.4pt, ngrokblue!85!black] (NGROK.east) -- (SRV.west)
+        node[midway, above=5pt, font=\small\bfseries, text=ngrokblue] {Túnel Ingress TLS/WSS}
+        node[midway, below=5pt, font=\footnotesize, text=gray!80!black] {Proxy Inverso $\rightarrow$ Puerto 5000};
 
-    % FASTAPI -> SUPABASE
-    \draw[->, very thick, supagreen!90!black] (SRV.south west) -- (SUPA.north east)
-        node[midway, above, sloped, font=\scriptsize\bfseries] {psycopg2 (SSL)}
-        node[midway, below, sloped, font=\tiny] {INSERT cada 15 min};
+    % 3 -> 4: FastAPI a Dashboard Web (Directo vertical por el canal derecho)
+    \draw[<->, line width=2.4pt, cloudblue!90!black] (SRV.south) -- (DASH.north)
+        node[midway, fill=white, inner sep=6pt, rounded corners=5pt, draw=cloudblue!50,
+             font=\small, align=center, text=cloudblue!90!black] {
+            \textbf{\normalsize WebSocket Live Broadcast}\\[2pt]
+            \small Telemetría RMS + Stream Acústico
+        };
 
-    % SUPABASE -> RSTUDIO
-    \draw[->, very thick, rblue] (SUPA.west) -- (RSTUDIO.east)
-        node[midway, above, font=\scriptsize\bfseries] {extraer\_datos.py}
-        node[midway, below, font=\tiny] {datos\_limpios.csv (236 filas)};
+    % 3 -> 5: FastAPI a Supabase (Ruta por el corredor vertical despejado en x = 25.8)
+    \coordinate (CORR_TOP) at (25.8, 12.7);
+    \coordinate (CORR_BOT) at (25.8, 3.8);
+
+    \draw[->, line width=2.4pt, supagreen!90!black] ($(SRV.west)+(0, -1.8)$) -- (CORR_TOP) -- 
+        ($(CORR_TOP)!0.28!(CORR_BOT)$) node[fill=white, inner sep=5pt, rounded corners=5pt, draw=supagreen!50,
+             font=\small, align=center, text=supagreen!90!black] {
+            \textbf{\normalsize psycopg2 (SSL Pooler:6543)}\\[2pt]
+            \small INSERT cada 15 min (métricas)
+        } -- (CORR_BOT) -- (SUPA.east);
+
+    % 5 -> 6: Supabase a RStudio (Gap de 6.4 cm)
+    \draw[->, line width=2.4pt, rblue!85!black] (SUPA.west) -- (RSTUDIO.east)
+        node[midway, above=5pt, font=\small\bfseries, text=rblue] {Extracción ETL con Python}
+        node[midway, below=5pt, font=\footnotesize, text=gray!80!black] {236 muestras $\cdot$ UTC-6 $\cdot$ Escala dBA};
 
 \end{tikzpicture}
 \end{document}
