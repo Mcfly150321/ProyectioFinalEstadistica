@@ -113,25 +113,24 @@ cat(sprintf("\n[OK] Gráfica descriptiva guardada en: %s\n", archivo_png_desc))
 # ==============================================================================
 # PARTE B: ANÁLISIS DE TENDENCIA HORARIA Y PROYECCIÓN AL DÍA 6 (LUNES)
 # ==============================================================================
-# El instructivo solicita seleccionar una hora específica (ej. 12:45 hrs)
+# El instructivo solicita seleccionar una hora específica (ej. franja matutina 09:30 hrs)
 # para extraer ese registro a lo largo de los días y proyectar la tendencia al Día 6.
-HORA_OBJETIVO <- "12:45"
+HORA_OBJETIVO <- "09:30"
+hora_dec_obj  <- 9.5  # 09:30 hrs (hora local UTC-6 Guatemala)
 
-datos_hora <- subset(datos, hora_texto == HORA_OBJETIVO)
+dias_disponibles <- sort(unique(datos$dia_numero))
+indices_hora <- sapply(dias_disponibles, function(d) {
+  sub_idx <- which(datos$dia_numero == d)
+  diffs <- abs(datos$hora_decimal[sub_idx] - hora_dec_obj)
+  sub_idx[which.min(diffs)]
+})
+datos_hora <- datos[indices_hora, ]
 
 cat("\n====================================================================\n")
-cat(sprintf(" ANÁLISIS DE TENDENCIA A HORA ESPECÍFICA: %s HRS\n", HORA_OBJETIVO))
+cat(sprintf(" ANÁLISIS DE TENDENCIA A HORA ESPECÍFICA: FRANJA DE LAS %s HRS\n", HORA_OBJETIVO))
 cat("====================================================================\n")
-
-if (nrow(datos_hora) < 2) {
-  # Si por alguna razón la hora exacta no tiene suficientes filas, tomar la franja más cercana
-  HORA_OBJETIVO <- unique(datos$hora_texto)[12]
-  datos_hora <- subset(datos, hora_texto == HORA_OBJETIVO)
-  cat(sprintf("[AVISO] Ajustado a la franja disponible: %s hrs\n", HORA_OBJETIVO))
-}
-
-cat("--- Registros Extraídos para la Franja ---\n")
-print(datos_hora[, c("dia_numero", "dia_nombre", "hora_texto", "decibeles_dba", "pico_dba", "supera_umbral")],
+cat("--- Registros Extraídos para la Franja (Más cercanos a las 09:30 hrs) ---\n")
+print(datos_hora[, c("dia_numero", "dia_nombre", "timestamp_utc6", "hora_texto", "decibeles_dba", "pico_dba", "supera_umbral")],
       row.names = FALSE)
 
 # Ajuste del Modelo de Regresión Lineal Simple: y = b0 + b1 * x

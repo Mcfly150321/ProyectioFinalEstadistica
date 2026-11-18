@@ -33,9 +33,15 @@ desv_dba      <- sd(datos$decibeles_dba)
 excesos_total <- sum(datos$supera_umbral)
 p_exceso      <- excesos_total / n_total
 
-# Tendencia a las 12:45 hrs
-datos_1245    <- subset(datos, hora_texto == "12:45")
-modelo_tend   <- lm(decibeles_dba ~ dia_numero, data = datos_1245)
+# Tendencia a las 09:30 hrs (hora local)
+hora_dec_obj  <- 9.5
+dias_disp     <- sort(unique(datos$dia_numero))
+idx_franja    <- sapply(dias_disp, function(d) {
+  sub_idx <- which(datos$dia_numero == d)
+  sub_idx[which.min(abs(datos$hora_decimal[sub_idx] - hora_dec_obj))]
+})
+datos_franja  <- datos[idx_franja, ]
+modelo_tend   <- lm(decibeles_dba ~ dia_numero, data = datos_franja)
 pred_dia6     <- predict(modelo_tend, newdata = data.frame(dia_numero = 6),
                          interval = "prediction", level = 0.95)
 
