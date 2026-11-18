@@ -161,18 +161,22 @@ void setup() {
         }
     }
 
-    configurarI2S();
+configurarI2S();
 
     String wsPath = "/ws/esp?token=" + String(esp_token);
-    String extraHeader = "X-ESP-Token: " + String(esp_token) + "\r\nngrok-skip-browser-warning: true";
+    // Aseguramos \r\n al final de cada cabecera
+    String extraHeader = "X-ESP-Token: " + String(esp_token) + "\r\nngrok-skip-browser-warning: 69420\r\n";
 
-    webSocket.begin(websockets_server_host, websockets_server_port, wsPath.c_str());
+    // 1. Primero se inyectan los headers
     webSocket.setExtraHeaders(extraHeader.c_str());
+
+    // 2. Luego se inicia la conexión (puerto 80 sin SSL)
+    webSocket.begin(websockets_server_host, websockets_server_port, wsPath.c_str());
+
     webSocket.onEvent(webSocketEvent);
     webSocket.setReconnectInterval(3000);
     webSocket.enableHeartbeat(15000, 3000, 2);
 }
-
 void loop() {
     webSocket.loop();
 
