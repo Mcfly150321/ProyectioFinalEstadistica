@@ -183,26 +183,29 @@ par(mar = c(4.8, 4.8, 3.5, 2))
 
 # Rango de graficación de Día 1 a Día 6
 dias_eje <- 1:6
+lim_inf_plot <- max(35, limite_inferior)
+lim_sup_plot <- min(95, max(datos_hora$decibeles_dba, limite_superior, 68) + 4)
+
 plot(datos_hora$dia_numero, datos_hora$decibeles_dba,
-     xlim = c(1, 6.5),
-     ylim = c(min(datos_hora$decibeles_dba, limite_inferior) - 4,
-              max(datos_hora$decibeles_dba, limite_superior, 68) + 4),
+     xlim = c(0.8, 6.5),
+     ylim = c(lim_inf_plot - 5, lim_sup_plot + 5),
      pch = 19, col = "#2980B9", cex = 1.8,
-     xlab = "Día de Monitoreo", ylab = "Nivel de Ruido a las 12:45 hrs (dBA)",
+     xlab = "Día de Monitoreo", ylab = sprintf("Nivel de Ruido a las %s hrs (dBA)", HORA_OBJETIVO),
      main = sprintf("Proyección de Tendencia Acústica para el Día 6 (%s hrs)", HORA_OBJETIVO),
      xaxt = "n", cex.main = 1.1, font.main = 2)
 
-axis(1, at = 1:6, labels = c("Día 1\n(Jue)", "Día 2\n(Vie)", "Día 3\n(Sáb)", "Día 4\n(Dom)", "Día 5\n(Extrap)", "Día 6\n(Lunes)"),
+axis(1, at = 1:6, labels = c("Día 1\n(03/Nov)", "Día 2\n(04/Nov)", "Día 3\n(05/Nov)", "Día 4\n(06/Nov)", "Día 5\n(Proy)", "Día 6\n(Lunes)"),
      padj = 0.4)
 
 # Recta de regresión ajustada
 abline(modelo_regresion, col = "#2980B9", lwd = 2.5)
 
-# Dibujar punto proyectado Día 6
-points(6, estimacion_puntual, pch = 17, col = "#C0392B", cex = 2.2)
+# Dibujar punto proyectado Día 6 (acotado al umbral de silencio físico si la recta lineal extrapola hacia abajo)
+est_puntual_plot <- max(40.0, estimacion_puntual)
+points(6, est_puntual_plot, pch = 17, col = "#C0392B", cex = 2.2)
 
 # Barra de error (Intervalo de predicción 95%)
-arrows(6, limite_inferior, 6, limite_superior, length = 0.08, angle = 90, code = 3, col = "#C0392B", lwd = 2)
+arrows(6, lim_inf_plot, 6, min(lim_sup_plot, limite_superior), length = 0.08, angle = 90, code = 3, col = "#C0392B", lwd = 2)
 
 # Línea del umbral de riesgo normativo (65 dBA)
 abline(h = 65.0, col = "#D35400", lwd = 2, lty = 2)

@@ -71,7 +71,7 @@ cat(sprintf("   • Nivel máximo pico  : %6.2f dBA\n", max(datos$pico_dba)))
 cat(sprintf("   • Frecuencia exceso  : %d de %d lecturas (%.2f%% del tiempo)\n\n",
             excesos_total, n_total, p_exceso * 100))
 
-cat("3. PROYECCIÓN DE TENDENCIA DÍA 6 - LUNES A LAS 12:45 HRS (FASE 2):\n")
+cat("3. PROYECCIÓN DE TENDENCIA DÍA 6 - LUNES A LAS 09:30 HRS (FASE 2):\n")
 cat(sprintf("   • Ecuación lineal    : ŷ = %.2f + (%.2f) * Día\n",
             coef(modelo_tend)[1], coef(modelo_tend)[2]))
 cat(sprintf("   • Proyección puntual : %6.2f dBA\n", pred_dia6[1, "fit"]))
