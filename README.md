@@ -51,6 +51,10 @@ A partir de las mediciones recopiladas, se contrasta el nivel sonoro contra los 
 
 ## 🔌 Diagrama Esquemático del Circuito
 
+<p align="center">
+  <img src="reportes/graficas/diagrama_circuito.png" alt="Diagrama Esquemático del Circuito ESP32 e INMP441" width="95%">
+</p>
+
 El micrófono digital INMP441 se comunica directamente con el ESP32 mediante el bus digital de audio I2S (Inter-IC Sound), evitando el ruido electromagnético que sufren los micrófonos analógicos convencionales:
 
 ```text

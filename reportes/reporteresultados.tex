@@ -160,39 +160,8 @@ L/R (Left / Right) & GND & Configuración de Canal & Forzado a canal izquierdo (
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[scale=0.95, every node/.style={transform shape}]
-    % Bloque ESP32
-    \draw[fill=blue!8, draw=blue!70, thick, rounded corners=4pt] (0,0) rectangle (4.5,5.5);
-    \node at (2.25,5.1) {\textbf{\large ESP32 DevKit}};
-    
-    % Pines ESP32
-    \node[anchor=west] at (0.2,4.3) {\small GPIO 33 (I2S\_SD)};
-    \node[anchor=west] at (0.2,3.5) {\small GPIO 14 (I2S\_SCK)};
-    \node[anchor=west] at (0.2,2.7) {\small GPIO 27 (I2S\_WS)};
-    \node[anchor=west] at (0.2,1.9) {\small 3.3V (VCC)};
-    \node[anchor=west] at (0.2,1.1) {\small GND (GND)};
-    \node[anchor=west] at (0.2,0.4) {\small GPIO 5 (Button)};
-    
-    % Bloque INMP441
-    \draw[fill=green!8, draw=green!60!black, thick, rounded corners=4pt] (8,1) rectangle (12.5,5.5);
-    \node at (10.25,5.1) {\textbf{\large INMP441 (MEMS)}};
-    
-    % Pines INMP441
-    \node[anchor=east] at (12.3,4.3) {\small SD (Data Out)};
-    \node[anchor=east] at (12.3,3.5) {\small SCK (BCLK)};
-    \node[anchor=east] at (12.3,2.7) {\small WS (LRCK)};
-    \node[anchor=east] at (12.3,1.9) {\small VDD ($3.3\text{V}$)};
-    \node[anchor=east] at (12.3,1.3) {\small GND / L/R};
-
-    % Conexiones de cableado
-    \draw[->, thick, red!70!black] (4.5,4.3) -- (8,4.3) node[midway, above] {\scriptsize Data Stream};
-    \draw[->, thick, orange!80!black] (4.5,3.5) -- (8,3.5) node[midway, above] {\scriptsize Clock ($BCLK$)};
-    \draw[->, thick, purple!80!black] (4.5,2.7) -- (8,2.7) node[midway, above] {\scriptsize Frame Sync ($WS$)};
-    \draw[-, thick, red] (4.5,1.9) -- (8,1.9) node[midway, above] {\scriptsize $3.3\text{V}$};
-    \draw[-, thick, black] (4.5,1.1) -- (6.2,1.1) -- (6.2,1.3) -- (8,1.3) node[midway, above] {\scriptsize GND};
-    \draw[-, thick, black] (12.5,1.3) -- (13.0,1.3) node[right] {\scriptsize L/R $\rightarrow$ GND};
-\end{tikzpicture}
-\caption{Esquema circuital de conexiones I2S entre el microcontrolador ESP32 y el micrófono INMP441.}
+\includegraphics[width=0.98\textwidth]{graficas/diagrama_circuito.png}
+\caption{Esquema circuital de conexiones I2S entre el microcontrolador ESP32 y el micrófono digital INMP441 con pulsador y LED indicador.}
 \label{fig:diagrama_circuito}
 \end{figure}
 
