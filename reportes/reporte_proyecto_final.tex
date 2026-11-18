@@ -85,7 +85,10 @@
     {\normalsize Kevin Daniel Sosa Cutz -- 202508017} \\[0.18cm]
     {\normalsize Katherine del Rosario Gramajo Alonzo -- 202508024} \\[0.18cm]
     {\normalsize Brayan Alexander Maldonado Jocol -- 202507011} \\[0.18cm]
-    {\normalsize Yoselin Stefany Ordoñez Estrada -- 202508028} \\[0.7cm]
+    {\normalsize Yoselin Stefany Ordoñez Estrada -- 202508028} \\[0.5cm]
+    
+    {\normalsize \textbf{Repositorio Oficial en GitHub:}} \\
+    {\small \url{https://github.com/Mcfly150321/ProyectioFinalEstadistica}} \\[0.6cm]
     
     {\small \scshape NOVIEMBRE, 2026}
 \end{titlepage}
@@ -250,7 +253,12 @@ En la etapa inicial del proyecto se construyeron los módulos prototipo `serverl
 \subsection{Fase 2: Migración a la Nube y Túnel Ngrok}
 Para otorgar acceso global al nodo sensor desde cualquier red Wi-Fi sin abrir puertos en el router universitario, se diseñó la siguiente solución:
 \begin{enumerate}
-    \item \textbf{Instancia Virtual en la Nube:} Se desplegó el servidor en una máquina virtual Linux (Ubuntu Server) accesible vía SSH (`ssh mcfly`).
+    \item \textbf{Control de Versiones y Repositorio en GitHub:} Todo el ecosistema de software (firmware en C++, backend en Python, frontend en JavaScript, scripts en RStudio y fuentes \LaTeX{}) se centralizó en el repositorio público de GitHub:
+    \begin{center}
+        \url{https://github.com/Mcfly150321/ProyectioFinalEstadistica}
+    \end{center}
+    Esto permitió mantener la trazabilidad de cambios, el trabajo colaborativo entre los integrantes del equipo y la sincronización continua hacia los entornos de ejecución.
+    \item \textbf{Instancia Virtual en la Nube:} Se desplegó el servidor en una máquina virtual Linux (Ubuntu Server) accesible vía SSH (`ssh mcfly`), clonando directamente el repositorio desde GitHub para garantizar la paridad exacta entre el desarrollo local y el entorno de producción.
     \item \textbf{Túnel Seguro Ngrok:} Se configuró un proceso daemon con Ngrok escuchando en el puerto 5000 y publicando en el dominio estático con certificado TLS:
     \begin{center}
         \texttt{luxury-roster-uncouth.ngrok-free.dev}
