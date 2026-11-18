@@ -1,194 +1,207 @@
-\documentclass[border=12pt]{standalone}
+\documentclass[border=25pt]{standalone}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
+\usepackage{xcolor}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, backgrounds}
 
+% Definición de colores corporativos e industriales
 \definecolor{espblue}{RGB}{28, 78, 148}
-\definecolor{espgray}{RGB}{45, 52, 54}
-\definecolor{pcbgreen}{RGB}{20, 110, 60}
-\definecolor{goldpin}{RGB}{218, 165, 32}
-\definecolor{wiregreen}{RGB}{46, 204, 113}
-\definecolor{wirered}{RGB}{231, 76, 60}
+\definecolor{espgray}{RGB}{35, 39, 42}
+\definecolor{pcbgreen}{RGB}{18, 92, 50}
+\definecolor{goldpin}{RGB}{225, 175, 40}
+\definecolor{wirered}{RGB}{215, 38, 56}
 \definecolor{wireblack}{RGB}{44, 62, 80}
-\definecolor{wireorange}{RGB}{230, 126, 34}
-\definecolor{wirepurple}{RGB}{142, 68, 173}
-\definecolor{wireblue}{RGB}{41, 128, 185}
-\definecolor{wireyellow}{RGB}{241, 196, 15}
+\definecolor{wireorange}{RGB}{230, 110, 20}
+\definecolor{wirepurple}{RGB}{135, 55, 170}
+\definecolor{wireblue}{RGB}{20, 105, 195}
+\definecolor{wiregreen}{RGB}{35, 145, 75}
+\definecolor{wireyellow}{RGB}{210, 155, 10}
 
 \begin{document}
 \begin{tikzpicture}[font=\sffamily, scale=1.0, >=Stealth]
 
     % =========================================================================
-    % TÍTULO Y ENCABEZADO
+    % TÍTULO Y ENCABEZADO SUPERIOR
     % =========================================================================
-    \node[anchor=west, font=\bfseries\Large, text=espblue] at (-0.5, 9.8) {Diagrama Esquemático de Conexión: ESP32 + INMP441 (Audio I2S)};
-    \node[anchor=west, font=\small, text=gray!80!black] at (-0.5, 9.3) {Proyecto de Estadística -- Monitoreo de Ruido | Universidad Mesoamericana Quetzaltenango};
+    \node[anchor=west, font=\bfseries\huge, text=espblue] at (-5.0, 12.2) {Diagrama Esquemático de Conexión: ESP32 + INMP441 (Audio I2S)};
+    \node[anchor=west, font=\large, text=gray!80!black] at (-5.0, 11.4) {Circuito Embebido del Nodo Sensor IoT | Universidad Mesoamericana Quetzaltenango};
 
     % =========================================================================
-    % 1. MÓDULO ESP32 DEVKIT
+    % 1. MÓDULO ESP32 DEVKIT V1 (PCB Central: x in [0.0, 9.0], y in [0.0, 10.0])
     % =========================================================================
     % Placa PCB principal
-    \draw[fill=espgray!95!black, draw=black, thick, rounded corners=6pt] (0, 0) rectangle (5.2, 8.5);
-    \node[font=\bfseries\large, text=white] at (2.6, 8.0) {ESP32 DevKit v1};
-    
-    % Antena PCB dorada
-    \draw[fill=goldpin!80!black, draw=goldpin!40!black, rounded corners=2pt] (1.3, 7.2) rectangle (3.9, 7.6);
-    \node[font=\tiny\bfseries, text=black] at (2.6, 7.4) {PCB ANTENNA};
+    \draw[fill=espgray, draw=black!90, line width=1.5pt, rounded corners=8pt] (0.0, 0.0) rectangle (9.0, 10.0);
+    \node[font=\bfseries\Large, text=white] at (4.5, 9.4) {ESP32 DevKit v1};
 
-    % Chip metálico ESP-WROOM-32
-    \draw[fill=gray!25, draw=gray!60, thick, rounded corners=3pt] (1.1, 4.3) rectangle (4.1, 7.0);
-    \node[font=\small\bfseries, text=gray!85!black] at (2.6, 6.2) {ESP-WROOM-32};
-    \node[font=\tiny, text=gray!70!black] at (2.6, 5.6) {Wi-Fi \& BLE MCU};
-    \node[font=\tiny, text=gray!70!black] at (2.6, 4.9) {Xtensa Dual-Core 240MHz};
+    % Antena PCB dorada superior
+    \draw[fill=goldpin!90!black, draw=goldpin!40!black, rounded corners=2pt] (3.0, 8.4) rectangle (6.0, 8.9);
+    \node[font=\tiny\bfseries, text=black] at (4.5, 8.65) {2.4 GHz PCB ANTENNA};
 
-    % Conector Micro-USB
-    \draw[fill=gray!40, draw=gray!80, thick, rounded corners=2pt] (1.8, -0.3) rectangle (3.4, 0.4);
-    \node[font=\tiny\bfseries, text=gray!90!black] at (2.6, 0.05) {Micro-USB};
+    % Blindaje metálico del SoC ESP-WROOM-32 (x in [3.0, 6.0], centrado en 4.5)
+    \draw[fill=gray!20, draw=gray!60, line width=1.2pt, rounded corners=4pt] (2.9, 3.8) rectangle (6.1, 8.0);
+    \node[font=\normalsize\bfseries, text=gray!90!black] at (4.5, 6.8) {ESP-WROOM-32};
+    \node[font=\footnotesize, text=gray!75!black] at (4.5, 6.0) {Xtensa Dual-Core 240MHz};
+    \node[font=\footnotesize, text=gray!75!black] at (4.5, 5.3) {Wi-Fi 802.11 b/g/n + BLE};
+    \node[font=\tiny\bfseries, text=espblue] at (4.5, 4.5) {32-bit MCU SoC};
+
+    % Conector Micro-USB inferior
+    \draw[fill=gray!40, draw=gray!80, line width=1pt, rounded corners=3pt] (3.3, -0.4) rectangle (5.7, 0.4);
+    \node[font=\scriptsize\bfseries, text=gray!90!black] at (4.5, 0.0) {Micro-USB};
 
     % Botones EN y BOOT
-    \draw[fill=white, draw=gray] (0.5, 0.6) rectangle (1.1, 1.2);
-    \node[font=\tiny] at (0.8, 0.9) {EN};
-    \draw[fill=white, draw=gray] (4.1, 0.6) rectangle (4.7, 1.2);
-    \node[font=\tiny] at (4.4, 0.9) {BOOT};
+    \draw[fill=white, draw=gray!70, rounded corners=2pt] (0.8, 0.6) rectangle (1.6, 1.4);
+    \node[font=\tiny\bfseries, text=black] at (1.2, 1.0) {EN};
+    \draw[fill=white, draw=gray!70, rounded corners=2pt] (7.4, 0.6) rectangle (8.2, 1.4);
+    \node[font=\tiny\bfseries, text=black] at (7.8, 1.0) {BOOT};
 
-    % Pines del costado derecho (usados para I2S y alimentación)
-    \coordinate (P_3V3)  at (5.2, 7.0);
-    \coordinate (P_GND)  at (5.2, 6.3);
-    \coordinate (P_D27)  at (5.2, 5.4);
-    \coordinate (P_D14)  at (5.2, 4.5);
-    \coordinate (P_D33)  at (5.2, 3.6);
+    % --- PINES DEL HEADER DERECHO (x = 8.5) ---
+    \coordinate (P_3V3)  at (8.5, 8.2);
+    \coordinate (P_GND)  at (8.5, 7.0);
+    \coordinate (P_D27)  at (8.5, 5.8);
+    \coordinate (P_D14)  at (8.5, 4.6);
+    \coordinate (P_D33)  at (8.5, 3.4);
 
-    % Pines del costado izquierdo (usados para Pulsador y LED)
-    \coordinate (P_D5)   at (0.0, 3.2);
-    \coordinate (P_D2)   at (0.0, 4.2);
-    \coordinate (P_GNDL) at (0.0, 2.2);
-
-    % Etiquetas de pines derechos
-    \foreach \coord/\label/\color in {
-        P_3V3/3.3V (VCC)/wirered,
-        P_GND/GND (Tierra)/wireblack,
-        P_D27/GPIO 27 (I2S\_WS)/wirepurple,
-        P_D14/GPIO 14 (I2S\_SCK)/wireorange,
-        P_D33/GPIO 33 (I2S\_SD)/wireblue
+    % Pines dorados y etiquetas en serigrafía blanca (entre x=6.5 y 8.0, sin tocar el chip)
+    \foreach \coord/\label in {
+        P_3V3/{3V3 (VCC)},
+        P_GND/{GND},
+        P_D27/{GPIO 27},
+        P_D14/{GPIO 14},
+        P_D33/{GPIO 33}
     } {
-        \draw[fill=goldpin, draw=black] (\coord) circle (2.2pt);
-        \node[anchor=east, font=\scriptsize\bfseries, text=white] at ($(\coord)+(-0.2, 0)$) {\label};
+        \draw[fill=goldpin, draw=black, line width=0.8pt] (\coord) circle (3.2pt);
+        \node[anchor=east, font=\small\bfseries, text=white] at ($(\coord)+(-0.35, 0)$) {\label};
     }
 
-    % Etiquetas de pines izquierdos
-    \draw[fill=goldpin, draw=black] (P_D2) circle (2.2pt);
-    \node[anchor=west, font=\scriptsize\bfseries, text=white] at ($(P_D2)+(0.2, 0)$) {GPIO 2 (LED)};
-
-    \draw[fill=goldpin, draw=black] (P_D5) circle (2.2pt);
-    \node[anchor=west, font=\scriptsize\bfseries, text=white] at ($(P_D5)+(0.2, 0)$) {GPIO 5 (Botón)};
-
-    \draw[fill=goldpin, draw=black] (P_GNDL) circle (2.2pt);
-    \node[anchor=west, font=\scriptsize\bfseries, text=white] at ($(P_GNDL)+(0.2, 0)$) {GND};
-
-
-    % =========================================================================
-    % 2. MÓDULO SENSOR INMP441 (MEMS I2S)
-    % =========================================================================
-    \draw[fill=pcbgreen!85!black, draw=black, thick, rounded corners=6pt] (11.0, 2.5) rectangle (15.4, 7.8);
-    \node[font=\bfseries\large, text=white] at (13.2, 7.3) {INMP441};
-    \node[font=\scriptsize\bfseries, text=goldpin!90!white] at (13.2, 6.8) {Micrófono Digital I2S};
-
-    % Puerto acústico (círculo dorado central)
-    \draw[fill=goldpin!60!black, draw=goldpin, thick] (13.2, 5.0) circle (0.65);
-    \draw[fill=black] (13.2, 5.0) circle (0.25);
-    \node[font=\tiny, text=white] at (13.2, 4.0) {Sound Port};
-
-    % Pines de conexión del INMP441 (costado izquierdo)
-    \coordinate (M_VDD) at (11.0, 6.7);
-    \coordinate (M_GND) at (11.0, 6.0);
-    \coordinate (M_SD)  at (11.0, 5.3);
-    \coordinate (M_SCK) at (11.0, 4.6);
-    \coordinate (M_WS)  at (11.0, 3.9);
-    \coordinate (M_LR)  at (11.0, 3.2);
+    % --- PINES DEL HEADER IZQUIERDO (x = 0.5) ---
+    \coordinate (P_D2)   at (0.5, 6.5);
+    \coordinate (P_D5)   at (0.5, 4.0);
+    \coordinate (P_GNDL) at (0.5, 2.5);
 
     \foreach \coord/\label in {
-        M_VDD/VDD (3.3V),
-        M_GND/GND,
-        M_SD/SD (Serial Data),
-        M_SCK/SCK (Clock),
-        M_WS/WS (Word Select),
-        M_LR/L/R (Canal Izq)
+        P_D2/{GPIO 2},
+        P_D5/{GPIO 5},
+        P_GNDL/{GND}
     } {
-        \draw[fill=goldpin, draw=black] (\coord) circle (2.2pt);
-        \node[anchor=west, font=\scriptsize\bfseries, text=white] at ($(\coord)+(0.2, 0)$) {\label};
+        \draw[fill=goldpin, draw=black, line width=0.8pt] (\coord) circle (3.2pt);
+        \node[anchor=west, font=\small\bfseries, text=white] at ($(\coord)+(0.35, 0)$) {\label};
     }
 
-    % Conexión puente interna L/R a GND en el sensor
-    \draw[thick, wireblack] (M_LR) -- ++(-0.4, 0) -- ++(0, 2.8) -- (M_GND);
-    \node[font=\tiny\bfseries, text=wireblack, anchor=east] at (10.55, 3.4) {L/R $\rightarrow$ GND};
+    % =========================================================================
+    % 2. MÓDULO SENSOR INMP441 (PCB Derecha: x in [16.5, 22.8], y in [0.5, 10.0])
+    % =========================================================================
+    \draw[fill=pcbgreen, draw=black!90, line width=1.5pt, rounded corners=8pt] (16.5, 0.5) rectangle (22.8, 10.0);
+    \node[font=\bfseries\Large, text=white] at (19.6, 9.3) {INMP441};
+    \node[font=\footnotesize\bfseries, text=goldpin!95!white] at (19.6, 8.6) {Micrófono Digital I2S (MEMS)};
 
+    % Puerto acústico (Sound Port) en el lado derecho, totalmente libre de texto
+    \draw[fill=goldpin!70!black, draw=goldpin, line width=1.5pt] (21.0, 5.0) circle (0.9);
+    \draw[fill=black] (21.0, 5.0) circle (0.38);
+    \node[font=\scriptsize\bfseries, text=white] at (21.0, 3.7) {Sound Port};
+
+    % --- PINES DEL INMP441 (x = 17.2) ---
+    \coordinate (M_VDD) at (17.2, 8.2);
+    \coordinate (M_GND) at (17.2, 7.0);
+    \coordinate (M_WS)  at (17.2, 5.8);
+    \coordinate (M_SCK) at (17.2, 4.6);
+    \coordinate (M_SD)  at (17.2, 3.4);
+    \coordinate (M_LR)  at (17.2, 2.2);
+
+    \foreach \coord/\label in {
+        M_VDD/{VDD},
+        M_GND/{GND},
+        M_WS/{WS},
+        M_SCK/{SCK},
+        M_SD/{SD},
+        M_LR/{L/R}
+    } {
+        \draw[fill=goldpin, draw=black, line width=0.8pt] (\coord) circle (3.2pt);
+        \node[anchor=west, font=\small\bfseries, text=white] at ($(\coord)+(0.35, 0)$) {\label};
+    }
+
+    % Puente externo L/R a GND (selección canal mono izquierdo)
+    \draw[line width=2.0pt, wireblack] (M_LR) -- ++(-0.6, 0) -- ++(0, 4.8) -- (M_GND);
+    \node[font=\scriptsize\bfseries, text=wireblack, anchor=east] at (16.4, 2.2) {Puente L/R a GND};
 
     % =========================================================================
-    % 3. CABLEADO I2S Y ALIMENTACIÓN (ESP32 <--> INMP441)
+    % 3. CABLEADO I2S Y ALIMENTACIÓN (RUTAS PARALELAS PERFECTAS)
     % =========================================================================
-    % VDD (3.3V) - Rojo
-    \draw[very thick, wirered, ->] (P_3V3) -- ++(1.8, 0) -- ++(0, -0.3) -- (M_VDD)
-        node[pos=0.45, above, font=\scriptsize\bfseries, text=wirered] {3.3V (VCC)};
 
-    % GND - Negro
-    \draw[very thick, wireblack, ->] (P_GND) -- ++(1.4, 0) -- ++(0, -0.3) -- (M_GND)
-        node[pos=0.45, above, font=\scriptsize\bfseries, text=wireblack] {GND Común};
+    % 1. VDD (3.3V) - Rojo
+    \draw[line width=2.5pt, wirered, ->] (P_3V3) -- (M_VDD);
+    \node[fill=white, draw=wirered!70, line width=1.2pt, rounded corners=4pt, inner sep=4pt,
+          font=\small\bfseries, text=wirered] at (12.8, 8.2) {3.3V DC (Alimentación VDD)};
 
-    % SD (Serial Data) - Azul
-    \draw[very thick, wireblue, <-] (P_D33) -- ++(1.5, 0) -- ++(0, 1.7) -- (M_SD)
-        node[pos=0.55, above, font=\scriptsize\bfseries, text=wireblue] {I2S\_SD (Audio Data)};
+    % 2. GND - Negro / Carbón
+    \draw[line width=2.5pt, wireblack, ->] (P_GND) -- (M_GND);
+    \node[fill=white, draw=wireblack!70, line width=1.2pt, rounded corners=4pt, inner sep=4pt,
+          font=\small\bfseries, text=wireblack] at (12.8, 7.0) {GND Común (Referencia 0V)};
 
-    % SCK (Clock) - Naranja
-    \draw[very thick, wireorange, ->] (P_D14) -- ++(2.2, 0) -- ++(0, 0.1) -- (M_SCK)
-        node[pos=0.5, above, font=\scriptsize\bfseries, text=wireorange] {I2S\_SCK (Clock 16kHz)};
+    % 3. WS (Word Select / LRCK) - Púrpura
+    \draw[line width=2.5pt, wirepurple, ->] (P_D27) -- (M_WS);
+    \node[fill=white, draw=wirepurple!70, line width=1.2pt, rounded corners=4pt, inner sep=4pt,
+          font=\small\bfseries, text=wirepurple] at (12.8, 5.8) {I2S WS / LRCK (Word Select)};
 
-    % WS (Word Select) - Púrpura
-    \draw[very thick, wirepurple, ->] (P_D27) -- ++(2.8, 0) -- ++(0, -1.5) -- (M_WS)
-        node[pos=0.45, above, font=\scriptsize\bfseries, text=wirepurple] {I2S\_WS (Frame Sync)};
+    % 4. SCK (Serial Clock / BCLK) - Naranja
+    \draw[line width=2.5pt, wireorange, ->] (P_D14) -- (M_SCK);
+    \node[fill=white, draw=wireorange!70, line width=1.2pt, rounded corners=4pt, inner sep=4pt,
+          font=\small\bfseries, text=wireorange] at (12.8, 4.6) {I2S SCK / BCLK (Reloj 16 kHz)};
 
+    % 5. SD (Serial Data / DOUT) - Azul
+    \draw[line width=2.5pt, wireblue, <-] (P_D33) -- (M_SD);
+    \node[fill=white, draw=wireblue!70, line width=1.2pt, rounded corners=4pt, inner sep=4pt,
+          font=\small\bfseries, text=wireblue] at (12.8, 3.4) {I2S SD / DOUT (Datos PCM)};
 
     % =========================================================================
-    % 4. COMPONENTES EXTERNOS (PULSADOR Y LED)
+    % 4. COMPONENTES EXTERNOS (PULSADOR Y LED A LA IZQUIERDA)
     % =========================================================================
-    % Pulsador Push Button (GPIO 5)
-    \coordinate (BTN_POS) at (-2.8, 3.2);
-    \draw[fill=gray!20, draw=black, thick, rounded corners=2pt] ($(BTN_POS)+(-0.6, -0.6)$) rectangle ($(BTN_POS)+(0.6, 0.6)$);
-    \draw[fill=black!80] (BTN_POS) circle (0.35);
+
+    % --- PULSADOR TÁCTIL (GPIO 5) ---
+    \coordinate (BTN_POS) at (-2.8, 4.0);
+    \draw[fill=gray!25, draw=black, line width=1.2pt, rounded corners=3pt] 
+        ($(BTN_POS)+(-0.65, -0.65)$) rectangle ($(BTN_POS)+(0.65, 0.65)$);
+    \draw[fill=black!85] (BTN_POS) circle (0.38);
     \node[font=\tiny\bfseries, text=white] at (BTN_POS) {PUSH};
-    \node[font=\scriptsize\bfseries, text=black, anchor=south] at ($(BTN_POS)+(0, 0.7)$) {Pulsador Modo Escucha};
+    \node[font=\small\bfseries, text=black, anchor=south] at ($(BTN_POS)+(0, 0.8)$) {Pulsador Modo Escucha (GPIO 5)};
 
-    % Conexión del Pulsador al ESP32 (GPIO 5 y GND)
-    \draw[very thick, wiregreen, ->] (P_D5) -- (BTN_POS);
-    \draw[very thick, wireblack] ($(BTN_POS)+(0, -0.6)$) -- ++(0, -1.0) -- ($(P_GNDL)+(-2.8, 0)$) -- (P_GNDL);
-    \node[font=\tiny\bfseries, text=wiregreen, anchor=south] at (-1.4, 3.25) {GPIO 5};
-    \node[font=\tiny\bfseries, text=wireblack, anchor=north] at (-1.4, 2.15) {GND (Pull-Up Interno)};
+    % Conexión GPIO 5
+    \draw[line width=2.2pt, wiregreen, ->] (P_D5) -- (BTN_POS);
 
-    % Diodo LED Indicador (GPIO 2)
-    \coordinate (LED_POS) at (-2.8, 5.8);
-    \draw[fill=wireyellow!80!white, draw=orange!80!black, thick] (LED_POS) circle (0.35);
-    \node[font=\tiny\bfseries, text=black] at (LED_POS) {LED};
-    \node[font=\scriptsize\bfseries, text=black, anchor=south] at ($(LED_POS)+(0, 0.5)$) {LED Indicador Streaming};
+    % Conexión GND del Pulsador
+    \draw[line width=2.2pt, wireblack] ($(BTN_POS)+(0, -0.65)$) -- ++(0, -1.5) coordinate (BTN_GND) 
+        -- ($(P_GNDL)+(-0.8, 0)$) -- (P_GNDL);
+    \node[font=\scriptsize\bfseries, text=black, anchor=north] at (-1.8, 2.45) {GND (Pull-Up Interno)};
+
+    % --- CIRCUITO LED INDICADOR (GPIO 2) ---
+    \coordinate (LED_POS) at (-3.2, 6.5);
+    \coordinate (R_POS)   at (-1.5, 6.5);
 
     % Resistencia limitadora 330 ohm
-    \coordinate (R_POS) at (-1.6, 5.8);
-    \draw[fill=orange!20!white, draw=black, thick] ($(R_POS)+(-0.35, -0.15)$) rectangle ($(R_POS)+(0.35, 0.15)$);
-    \node[font=\tiny\bfseries] at (R_POS) {$330\Omega$};
+    \draw[fill=orange!25, draw=black, line width=1pt] ($(R_POS)+(-0.45, -0.2)$) rectangle ($(R_POS)+(0.45, 0.2)$);
+    \node[font=\scriptsize\bfseries, text=black] at (R_POS) {$330\,\Omega$};
 
-    % Conexiones del LED
-    \draw[very thick, wireyellow!80!black, ->] (P_D2) -- ++(-0.6, 0) -- ++(0, 1.6) -- ($(R_POS)+(0.35, 0)$);
-    \draw[very thick, wireyellow!80!black] ($(R_POS)+(-0.35, 0)$) -- ($(LED_POS)+(0.35, 0)$);
-    \draw[very thick, wireblack] ($(LED_POS)+(-0.35, 0)$) -- ++(-0.5, 0) -- ++(0, -3.6) -- ++(0.5, 0);
+    % LED indicador
+    \draw[fill=wireyellow!80!white, draw=orange!90!black, line width=1.2pt] (LED_POS) circle (0.38);
+    \node[font=\tiny\bfseries, text=black] at (LED_POS) {LED};
+    \node[font=\small\bfseries, text=black, anchor=south] at ($(LED_POS)+(0, 0.6)$) {LED Streaming (GPIO 2)};
 
+    % Conexión GPIO 2 a resistencia y LED
+    \draw[line width=2.2pt, wireyellow!85!black] (P_D2) -- ($(R_POS)+(0.45, 0)$);
+    \draw[line width=2.2pt, wireyellow!85!black, ->] ($(R_POS)+(-0.45, 0)$) -- ($(LED_POS)+(0.38, 0)$);
+
+    % Retorno a GND del LED (corre por el extremo izquierdo x = -4.8 sin tocar texto)
+    \draw[line width=2.2pt, wireblack] ($(LED_POS)+(-0.38, 0)$) -- ++(-1.2, 0) -- ++(0, -4.65) 
+        -- ($(P_GNDL)+(-0.8, -0.65)$) -- ++(0, 0.65);
 
     % =========================================================================
-    % 5. CAJA DE LEYENDA TÉCNICA
+    % 5. CAJA DE LEYENDA TÉCNICA Y ESPECIFICACIONES
     % =========================================================================
-    \draw[fill=white, draw=gray!50, rounded corners=4pt, thin] (-0.5, -2.4) rectangle (15.4, -0.7);
-    \node[anchor=west, font=\scriptsize\bfseries, text=espblue] at (-0.3, -1.0) {Resumen del Protocolo y Pines:};
-    \node[anchor=west, font=\scriptsize] at (-0.3, -1.4) {• \textbf{I2S Audio:} WS $\rightarrow$ GPIO 27 | SCK $\rightarrow$ GPIO 14 | SD $\rightarrow$ GPIO 33 | Frecuencia: $16\text{ kHz}$ mono, tramas PCM de 1024 muestras.};
-    \node[anchor=west, font=\scriptsize] at (-0.3, -1.8) {• \textbf{Controles Locales:} Pulsador en GPIO 5 (alterna transmisión WebSocket) | LED en GPIO 2 (encendido continuo durante streaming).};
-    \node[anchor=west, font=\scriptsize] at (-0.3, -2.2) {• \textbf{Alimentación:} VDD $3.3\text{V}$ y GND común. El pin L/R del INMP441 se conecta a GND para seleccionar canal izquierdo (Left Channel).};
+    \draw[fill=white, draw=gray!50, line width=1pt, rounded corners=6pt] (-5.0, -2.6) rectangle (22.8, -0.6);
+    \node[anchor=west, font=\small\bfseries, text=espblue] at (-4.7, -0.95) {Especificaciones Técnicas del Hardware y Protocolo:};
+    \node[anchor=west, font=\footnotesize] at (-4.7, -1.4) {• \textbf{Audio Digital I2S:} Comunicación serie síncrona sin ruido electromagnético. Muestreo $16\,\text{kHz}$, 24 bits PCM, tramas de 1024 muestras.};
+    \node[anchor=west, font=\footnotesize] at (-4.7, -1.8) {• \textbf{Asignación de Pines:} $\text{WS} \rightarrow \text{GPIO 27}$ | $\text{SCK} \rightarrow \text{GPIO 14}$ | $\text{SD} \rightarrow \text{GPIO 33}$ | $\text{L/R} \rightarrow \text{GND}$ (Canal Mono Izquierdo).};
+    \node[anchor=west, font=\footnotesize] at (-4.7, -2.2) {• \textbf{Control y Señalización:} Pulsador en GPIO 5 (alterna envío de audio) | LED en GPIO 2 con $330\,\Omega$ (indicador luminoso de streaming).};
 
 \end{tikzpicture}
 \end{document}
