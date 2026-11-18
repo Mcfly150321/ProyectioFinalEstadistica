@@ -6,3 +6,5 @@ reportes/ejemplo/
 *.log
 *.out
 *.toc
+*.lof
+*.lot
