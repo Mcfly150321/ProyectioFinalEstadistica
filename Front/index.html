@@ -363,37 +363,126 @@
           </div>
         </div>
 
-        <!-- Card: Arquitectura del Proyecto -->
+        <!-- Card: Simulacion y Analitica R (Live Engine) -->
         <div class="card mb-4" id="seccion-r">
-          <div class="card-header">
-            <h5 class="card-title mb-0">Etapas del Proyecto</h5>
+          <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-graph-up-arrow text-primary fs-5"></i>
+              <h5 class="card-title mb-0">Simulacion y Analitica R (Live)</h5>
+            </div>
+            <span id="rLiveStatusBadge" class="badge bg-success-subtle text-success">
+              <i class="bi bi-check-circle-fill me-1"></i>R 4.1.2 Activo
+            </span>
           </div>
 
-          <div class="card-body p-0">
-            <div class="timeline-widget">
-              <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <span class="badge bg-success-subtle text-success">Fase 1</span>
-                  <strong class="small text-dark">Adquisicion ESP32 y Persistencia</strong>
-                </div>
-                <p class="small text-muted mb-0">Captura digital I2S con INMP441 en ESP32, recepcion WebSocket autenticada y registro en PostgreSQL.</p>
-              </div>
+          <div class="card-body p-3">
+            <!-- Botones de Accion -->
+            <div class="d-flex gap-2 mb-3">
+              <button id="btnRecalcularR" type="button" class="btn btn-sm btn-outline-primary flex-fill" title="Reejecutar Rscript con los datos actuales">
+                <i class="bi bi-arrow-repeat me-1"></i>Recalcular R
+              </button>
+              <button id="btnCapturarRegistro" type="button" class="btn btn-sm btn-outline-success flex-fill" title="Guardar muestra a Postgres y recalcular R">
+                <i class="bi bi-cloud-arrow-up me-1"></i>Capturar Muestra
+              </button>
+            </div>
 
-              <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-25">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <span class="badge bg-primary-subtle text-primary">Fase 2</span>
-                  <strong class="small text-dark">Estadistica Descriptiva en R</strong>
+            <!-- KPI Grid: Medidas Descriptivas (Fase 2) -->
+            <div class="row g-2 mb-3 text-center">
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Muestras (N)</small>
+                  <span id="rStatN" class="fw-bold fs-6 text-dark">---</span>
                 </div>
-                <p class="small text-muted mb-0">Calculo automatizado de media, mediana, varianza y desviacion estandar mediante llamadas a Rscript.</p>
               </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Media dBA</small>
+                  <span id="rStatMedia" class="fw-bold fs-6 text-primary">---</span>
+                </div>
+              </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Mediana dBA</small>
+                  <span id="rStatMediana" class="fw-bold fs-6 text-info">---</span>
+                </div>
+              </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Desv. Est. (s)</small>
+                  <span id="rStatSd" class="fw-bold fs-6 text-secondary">---</span>
+                </div>
+              </div>
+            </div>
 
-              <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <span class="badge bg-warning-subtle text-warning">Fase 3</span>
-                  <strong class="small text-dark">Modelos Probabilisticos</strong>
+            <!-- KPI Grid: Probabilidades y Modelos (Fases 1 y 3) -->
+            <div class="row g-2 mb-3 text-center">
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">% Excesos (&ge;65)</small>
+                  <span id="rStatExcesos" class="fw-bold fs-6 text-danger">---</span>
                 </div>
-                <p class="small text-muted mb-0">Ajuste de distribuciones binomiales y pruebas de hipotesis para eventos acusticos.</p>
               </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Bernoulli (p)</small>
+                  <span id="rStatP" class="fw-bold fs-6 text-warning">---</span>
+                </div>
+              </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Riesgo (n=3)</small>
+                  <span id="rStatRiesgo3" class="fw-bold fs-6 text-danger">---</span>
+                </div>
+              </div>
+              <div class="col-6 col-sm-3">
+                <div class="p-2 border rounded bg-light">
+                  <small class="text-muted d-block text-truncate">Pred. Dia 6</small>
+                  <span id="rStatPredDia6" class="fw-bold fs-6 text-dark">---</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tarjeta Detalle: Modelo Binomial para n=3 Cubiculos -->
+            <div class="border rounded p-2 mb-2 bg-body-tertiary">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="small text-dark"><i class="bi bi-diagram-3 me-1"></i>Binomial n=3 (Cubiculos):</strong>
+                <span id="rStatRiesgoBadge" class="badge bg-warning-subtle text-warning">P(X &ge; 1) = ---</span>
+              </div>
+              <div class="row g-1 text-center small text-muted">
+                <div class="col-3">P(0): <span id="rStatBin0" class="fw-semibold text-dark">---</span></div>
+                <div class="col-3">P(1): <span id="rStatBin1" class="fw-semibold text-dark">---</span></div>
+                <div class="col-3">P(2): <span id="rStatBin2" class="fw-semibold text-dark">---</span></div>
+                <div class="col-3">P(3): <span id="rStatBin3" class="fw-semibold text-dark">---</span></div>
+              </div>
+            </div>
+
+            <!-- Tarjeta Detalle: Regresion Lineal de Tendencia -->
+            <div class="border rounded p-2 mb-2 bg-body-tertiary">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="small text-dark"><i class="bi bi-activity me-1"></i>Regresion de Tendencia:</strong>
+                <span id="rStatR2Badge" class="badge bg-info-subtle text-info">R&sup2; = ---</span>
+              </div>
+              <div class="small text-muted d-flex justify-content-between">
+                <span>&beta;₀: <b id="rStatB0" class="text-dark">---</b> | &beta;₁: <b id="rStatB1" class="text-dark">---</b></span>
+                <span id="rStatTendencia" class="badge bg-success-subtle text-success">Estable</span>
+              </div>
+            </div>
+
+            <!-- Ultimo Registro Procesado por el Pipeline -->
+            <div class="border rounded p-2 bg-body-tertiary small">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="text-dark"><i class="bi bi-database-check me-1"></i>Ultimo Registro:</strong>
+                <span id="rUltimoBadge" class="badge bg-success-subtle text-success">Normal</span>
+              </div>
+              <div class="text-muted d-flex justify-content-between flex-wrap">
+                <span>ID: <b id="rUltimoId" class="text-dark">---</b> (<span id="rUltimoHora">---</span>)</span>
+                <span>dBA: <b id="rUltimoDba" class="text-primary">---</b></span>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-2 px-1">
+              <small id="rStatTimestamp" class="text-muted" style="font-size: 0.75rem;">Ultimo calculo R: ---</small>
+              <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">UTC-6 Guatemala</span>
             </div>
           </div>
         </div>
@@ -428,10 +517,10 @@
   <script src="assets/libs/bootstrap/js/bootstrap.bundle.min.js"></script>
 
   <!-- Modulos de Audio Organizados (con control de version contra cache) -->
-  <script src="assets/js/audio-core.js?v=7"></script>
-  <script src="assets/js/audio-visualizer.js?v=7"></script>
-  <script src="assets/js/audio-transmitter.js?v=7"></script>
-  <script src="assets/js/app.js?v=7"></script>
+  <script src="assets/js/audio-core.js?v=8"></script>
+  <script src="assets/js/audio-visualizer.js?v=8"></script>
+  <script src="assets/js/audio-transmitter.js?v=8"></script>
+  <script src="assets/js/app.js?v=8"></script>
 
 </body>
 

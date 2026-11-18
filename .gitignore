@@ -1,4 +1,6 @@
 /entorno
+__pycache__/
+*.pyc
 instrucciones.txt
 .env
 reportes/ejemplo/

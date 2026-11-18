@@ -51,11 +51,44 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastTableUpdate = 0;
   let espState = { espConnected: false, recording: false };
 
+  // Elementos de Simulacion y Analitica R Live
+  const rLiveStatusBadge = document.getElementById('rLiveStatusBadge');
+  const btnRecalcularR = document.getElementById('btnRecalcularR');
+  const btnCapturarRegistro = document.getElementById('btnCapturarRegistro');
+
+  const rStatN = document.getElementById('rStatN');
+  const rStatMedia = document.getElementById('rStatMedia');
+  const rStatMediana = document.getElementById('rStatMediana');
+  const rStatSd = document.getElementById('rStatSd');
+
+  const rStatExcesos = document.getElementById('rStatExcesos');
+  const rStatP = document.getElementById('rStatP');
+  const rStatRiesgo3 = document.getElementById('rStatRiesgo3');
+  const rStatPredDia6 = document.getElementById('rStatPredDia6');
+
+  const rStatRiesgoBadge = document.getElementById('rStatRiesgoBadge');
+  const rStatBin0 = document.getElementById('rStatBin0');
+  const rStatBin1 = document.getElementById('rStatBin1');
+  const rStatBin2 = document.getElementById('rStatBin2');
+  const rStatBin3 = document.getElementById('rStatBin3');
+
+  const rStatR2Badge = document.getElementById('rStatR2Badge');
+  const rStatB0 = document.getElementById('rStatB0');
+  const rStatB1 = document.getElementById('rStatB1');
+  const rStatTendencia = document.getElementById('rStatTendencia');
+
+  const rUltimoBadge = document.getElementById('rUltimoBadge');
+  const rUltimoId = document.getElementById('rUltimoId');
+  const rUltimoHora = document.getElementById('rUltimoHora');
+  const rUltimoDba = document.getElementById('rUltimoDba');
+  const rStatTimestamp = document.getElementById('rStatTimestamp');
+
   // 2. Cliente WebSocket de Monitoreo
   const monitorClient = new EspMonitorClient(audioCore, {
     onEspStatusChange: handleEspStatusChange,
     onPacketReceived: handlePacketReceived,
-    onAuthError: handleAuthError
+    onAuthError: handleAuthError,
+    onLiveStats: handleLiveStatsReceived
   });
 
   // Iniciar visualizador y loop de UI
@@ -320,4 +353,151 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 10. Actualizacion y Control de Estadisticas R en Vivo (Live Engine)
+  function handleLiveStatsReceived(stats) {
+    if (!stats || stats.status !== 'success') return;
+
+    if (rLiveStatusBadge) {
+      rLiveStatusBadge.className = 'badge bg-success-subtle text-success';
+      rLiveStatusBadge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>R 4.1.2 Activo';
+    }
+
+    if (rStatN) rStatN.textContent = stats.n_total;
+    if (rStatMedia && stats.descriptiva) rStatMedia.textContent = stats.descriptiva.media.toFixed(2);
+    if (rStatMediana && stats.descriptiva) rStatMediana.textContent = stats.descriptiva.mediana.toFixed(2);
+    if (rStatSd && stats.descriptiva) rStatSd.textContent = `${stats.descriptiva.desv_estandar.toFixed(2)} dB`;
+
+    if (rStatExcesos && stats.normativa) {
+      rStatExcesos.textContent = `${stats.normativa.pct_excesos.toFixed(1)}% (${stats.normativa.total_excesos})`;
+    }
+    if (rStatP && stats.normativa) rStatP.textContent = stats.normativa.p_bernoulli.toFixed(4);
+
+    if (rStatRiesgo3 && stats.binomial_3_cubiculos) {
+      const r3 = stats.binomial_3_cubiculos.riesgo_critico_ge1 * 100;
+      rStatRiesgo3.textContent = `${r3.toFixed(2)}%`;
+      if (rStatRiesgoBadge) {
+        rStatRiesgoBadge.textContent = `P(X >= 1) = ${r3.toFixed(2)}%`;
+        rStatRiesgoBadge.className = r3 > 30 ? 'badge bg-danger-subtle text-danger' : 'badge bg-warning-subtle text-warning';
+      }
+    }
+
+    if (rStatPredDia6 && stats.regresion_tendencia) {
+      rStatPredDia6.textContent = `${stats.regresion_tendencia.proyeccion_dia6.toFixed(2)} dBA`;
+    }
+
+    if (stats.binomial_3_cubiculos) {
+      const b = stats.binomial_3_cubiculos;
+      if (rStatBin0) rStatBin0.textContent = `${(b.p_x0 * 100).toFixed(1)}%`;
+      if (rStatBin1) rStatBin1.textContent = `${(b.p_x1 * 100).toFixed(1)}%`;
+      if (rStatBin2) rStatBin2.textContent = `${(b.p_x2 * 100).toFixed(1)}%`;
+      if (rStatBin3) rStatBin3.textContent = `${(b.p_x3 * 100).toFixed(1)}%`;
+    }
+
+    if (stats.regresion_tendencia) {
+      const reg = stats.regresion_tendencia;
+      if (rStatR2Badge) rStatR2Badge.textContent = `R\u00B2 = ${reg.r2.toFixed(4)}`;
+      if (rStatB0) rStatB0.textContent = reg.intercepto_b0.toFixed(2);
+      if (rStatB1) rStatB1.textContent = `${reg.pendiente_b1 > 0 ? '+' : ''}${reg.pendiente_b1.toFixed(2)} dB/d\u00EDa`;
+      if (rStatTendencia) {
+        if (reg.pendiente_b1 < -0.5) {
+          rStatTendencia.className = 'badge bg-success-subtle text-success';
+          rStatTendencia.textContent = 'Descendente';
+        } else if (reg.pendiente_b1 > 0.5) {
+          rStatTendencia.className = 'badge bg-danger-subtle text-danger';
+          rStatTendencia.textContent = 'Creciente';
+        } else {
+          rStatTendencia.className = 'badge bg-secondary-subtle text-secondary';
+          rStatTendencia.textContent = 'Estable';
+        }
+      }
+    }
+
+    if (stats.ultimo_registro) {
+      const ult = stats.ultimo_registro;
+      if (rUltimoId) rUltimoId.textContent = `#${ult.id}`;
+      if (rUltimoHora) rUltimoHora.textContent = `${ult.fecha} ${ult.hora}`;
+      if (rUltimoDba) rUltimoDba.textContent = `${ult.decibeles_dba.toFixed(2)} dBA`;
+      if (rUltimoBadge) {
+        if (ult.supera_umbral) {
+          rUltimoBadge.className = 'badge bg-danger-subtle text-danger';
+          rUltimoBadge.textContent = 'Supera Umbral (\u226565)';
+        } else {
+          rUltimoBadge.className = 'badge bg-success-subtle text-success';
+          rUltimoBadge.textContent = 'Bajo Norma (<65)';
+        }
+      }
+    }
+
+    if (rStatTimestamp && stats.timestamp_computo) {
+      rStatTimestamp.textContent = `Ultimo calculo R: ${stats.timestamp_computo}`;
+    }
+  }
+
+  // Escuchadores de eventos para recalcular R y capturar muestra
+  if (btnRecalcularR) {
+    btnRecalcularR.addEventListener('click', async () => {
+      btnRecalcularR.disabled = true;
+      const originalText = btnRecalcularR.innerHTML;
+      btnRecalcularR.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calculando...';
+      try {
+        const res = await fetch('/api/estadisticas/recalcular', {
+          method: 'POST',
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.stats) handleLiveStatsReceived(body.stats);
+        }
+      } catch (err) {
+        console.error('Error al recalcular R:', err);
+      } finally {
+        btnRecalcularR.disabled = false;
+        btnRecalcularR.innerHTML = originalText;
+      }
+    });
+  }
+
+  if (btnCapturarRegistro) {
+    btnCapturarRegistro.addEventListener('click', async () => {
+      btnCapturarRegistro.disabled = true;
+      const originalText = btnCapturarRegistro.innerHTML;
+      btnCapturarRegistro.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Capturando...';
+      try {
+        const snap = audioCore.getSnapshot();
+        const candDb = (snap && snap.db && snap.db > -59.5) ? snap.db : -42.5;
+        await fetch('/api/capturar_registro', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
+          },
+          body: JSON.stringify({ db: candDb })
+        });
+      } catch (err) {
+        console.error('Error al capturar registro:', err);
+      } finally {
+        setTimeout(() => {
+          btnCapturarRegistro.disabled = false;
+          btnCapturarRegistro.innerHTML = originalText;
+        }, 1500);
+      }
+    });
+  }
+
+  // Cargar metricas R iniciales via HTTP al arrancar
+  async function cargarEstadisticasLiveIniciales() {
+    try {
+      const res = await fetch('/api/estadisticas/live', {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        handleLiveStatsReceived(data);
+      }
+    } catch (e) {
+      console.warn('No se pudo precargar estadisticas live de R:', e);
+    }
+  }
+  cargarEstadisticasLiveIniciales();
 });

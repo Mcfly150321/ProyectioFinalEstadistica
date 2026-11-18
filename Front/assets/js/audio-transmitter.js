@@ -16,6 +16,7 @@ class EspMonitorClient {
     this.onEspStatusChange = options.onEspStatusChange || (() => {});
     this.onPacketReceived = options.onPacketReceived || (() => {});
     this.onAuthError = options.onAuthError || (() => {});
+    this.onLiveStats = options.onLiveStats || (() => {});
   }
 
   /**
@@ -104,6 +105,10 @@ class EspMonitorClient {
                 recording: true
               });
               this.audioCore.feedMetrics(msg);
+            } else if (msg.type === 'estadisticas_live') {
+              if (this.onLiveStats) {
+                this.onLiveStats(msg.data);
+              }
             }
           } catch (e) {
             console.warn('Mensaje JSON invalido:', e);

@@ -1,0 +1,53 @@
+{
+  "status": "success",
+  "timestamp_computo": "2026-11-18 13:32:30",
+  "n_total": 236,
+  "ultimo_registro": {
+    "id": 240,
+    "fecha": "2026-11-06",
+    "hora": "11:13",
+    "decibeles_dba": 57.85,
+    "supera_umbral": false
+  },
+  "descriptiva": {
+    "media": 56.03,
+    "mediana": 55.28,
+    "moda": 50.10,
+    "varianza": 55.10,
+    "desv_estandar": 7.42,
+    "cv_pct": 13.25,
+    "min": 45.00,
+    "max": 74.72,
+    "q1": 50.07,
+    "q3": 61.17,
+    "iqr": 11.10
+  },
+  "normativa": {
+    "umbral_dba": 65.0,
+    "total_excesos": 31,
+    "pct_excesos": 13.14,
+    "p_bernoulli": 0.1314,
+    "q_bernoulli": 0.8686
+  },
+  "binomial_3_cubiculos": {
+    "n": 3,
+    "p_x0": 0.6554,
+    "p_x1": 0.2973,
+    "p_x2": 0.0450,
+    "p_x3": 0.0023,
+    "riesgo_critico_ge1": 0.3446
+  },
+  "binomial_7_estaciones": {
+    "n": 7,
+    "p_x0": 0.3732,
+    "p_x1": 0.3950,
+    "p_x2": 0.1792,
+    "riesgo_ge2": 0.2318
+  },
+  "regresion_tendencia": {
+    "intercepto_b0": 73.46,
+    "pendiente_b1": -4.87,
+    "r2": 0.5122,
+    "proyeccion_dia6": 44.22
+  }
+}
